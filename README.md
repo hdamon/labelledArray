@@ -1,4 +1,3 @@
 # labelledArray
 
-A M
-atlab object class for manipulating structured arrays.
+A Matlab object class for manipulating structured arrays.
