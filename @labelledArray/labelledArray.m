@@ -312,7 +312,7 @@ classdef labelledArray < handle & matlab.mixin.Copyable
         if isa(b,'labelledArray')
           assert(isConsistent(obj(idxObj),b),'Inconsistent decomposition sizes');
           coeff = b.array;
-          [names,labels] = getConsistentDimensions(obj(idxObj),b);
+          [names,labels,units,values] = getConsistentDimensions(obj(idxObj),b);
         else
           coeff = b;
           names = obj.dimNames;
@@ -323,6 +323,8 @@ classdef labelledArray < handle & matlab.mixin.Copyable
         objOut(idxObj).array_ = bsxfun(funcHandle,obj.array,coeff);
         objOut(idxObj).dimNames = names;
         objOut(idxObj).dimLabels = labels;
+        objOut(idxObj).dimUnits = units;
+        objOut(idxObj).dimValues = values;
         
       end;
       
