@@ -10,17 +10,27 @@ classdef labelledArray < handle & matlab.mixin.Copyable
   % Optional Param-Value Inputs
   % ---------------------------
   %  'dimNames'  : dimNames for each dimension.
-  %  'dimLabels' : An cell array defining dimLabels for one or more dimensions.
-  %               This array must be of size (N X 2), arranged as:
-  %                { <DIMENSION A> , <CellString of dimLabels> ;
-  %                  <DIMENSION B> , <CellString of dimLabels> }
-  %               Each dimension must be a scalar numeric value, with no
-  %               repeats. Each cell string must have a number of elements
-  %               equal to the current size of the array along that
-  %               dimension.
-  %  'dimValues' : A cell array of dimValues along one or more dimensions. Cell
+  %  'dimLabels' : An cell array defining labels for the elements along
+  %                   one or more dimensions.
+  %                 Labels can be assigned through the constructor in one
+  %                 of two ways:
+  %                   1) Provide a cell array of size {nDim x 1} or 
+  %                       {1 X nDim}, where nDim is the number of
+  %                       dimensions. Each element in the cell must either
+  %                       be empty, or be a cellstr with numel equal to the
+  %                       size along that dimension.
+  %                   2) Provide a cell array of size (N X 2), arranged as:
+  %                        { <DIMENSION A> , <CellString of dimLabels> ;
+  %                          <DIMENSION B> , <CellString of dimLabels> }
+  %                       <DIMENSION> can be either a scalar numeric value,
+  %                       or a character string matching one of the values
+  %                       in obj.dimNames. Each cellstring of dimLabels
+  %                       must have a number of elements equal to the
+  %                       current size of the array along that dimension.
+  %  'dimUnits'  : A cell array of units for one or more dimensions.
+  %  'dimValues' : A cell array of dimension values along one or more dimensions. Cell
   %               array should be formatted as for 'dimLabels', except instead
-  %               of the dimValues beign cell strings, they must be numeric
+  %               of the dimValues being cell strings, they must be numeric
   %               vectors.
   %
   % Overloaded Functions
@@ -42,18 +52,20 @@ classdef labelledArray < handle & matlab.mixin.Copyable
   %         behavior.
   %
   % Referencing into labelledarray Objects
-  % -------------------------------------
+  % --------------------------------------
   %   Referencing for labelledarray objects behaves slightly differently
   %   than for normal Matlab arrays.
   %
   %  obj.<property> : Behaves normally.
   %
+  %  Numeric Indexing:
+  %
   %  obj(<indices>) : Behaves in one of two ways:
   %                     1) If obj is an array of labelledarray objects, this
   %                          references into the array
   %                     2) If obj is a single labelledarray object, this
-  %                          returns a new object with the array, dimValues,
-  %                          and dimLabels subselected according to the
+  %                          returns a new object with the array all 
+  %                          associated information subselected according to the
   %                          indices.
   %
   %  obj{<indices>} : References into an array of labelledarray objects.
@@ -63,7 +75,19 @@ classdef labelledArray < handle & matlab.mixin.Copyable
   %                       obj{i}.array(x,y,z)
   %                     work as expected.
   %
-  
+  % Label Indexing:
+  %
+  % For dimensions that have had dimLabels assigned, the array can also be
+  % directly indexed using those labels:
+  %
+  %   IE:     obj(:,{'A' 'B' 'C'},:)
+  %       or  obj(:,'A',:) 
+  %
+  % Will both work for a three dimensional labelledArray where elements
+  % along the second dimension have been assigned the labels 'A', 'B', and
+  % 'C',
+  %
+  %
   properties (Hidden,Dependent)
     array
     dimNames
@@ -234,6 +258,11 @@ classdef labelledArray < handle & matlab.mixin.Copyable
       end;
       
     end
+    
+    function out = sum(obj,dim)
+      if ~exist('dim','var'),dim = 1; end;
+      out = applyDimFunc(@var,obj,1,dim);
+    end;
     
     function out = mean(obj,dim)
       if ~exist('dim','var'), dim = 1; end;      
@@ -939,8 +968,9 @@ classdef labelledArray < handle & matlab.mixin.Copyable
     function validCell = validateCellInput(obj,val)
       %% Check cell input arrays, and convert style if necessary.
       %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
       assert(iscell(val)&&((size(val,2)==2)||...
-        (numel(val)==obj.ndims)),'Incorrect input shape');
+        (numel(val)>=obj.ndims)),'Incorrect input shape');
       
       % Check if input is already formatted correctly
       isValid = true;
@@ -969,9 +999,9 @@ classdef labelledArray < handle & matlab.mixin.Copyable
       if isValid, return; end;
       
       % All dimensions are defined
-      if numel(val)==obj.ndims
+      if numel(val)>=obj.ndims
         validCell = cell(numel(val),2);
-        for i = 1:obj.ndims
+        for i = 1:numel(val)
           validCell{i,1} = i;
           validCell{i,2} = val{i};
         end
