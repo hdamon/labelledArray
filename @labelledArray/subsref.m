@@ -11,8 +11,9 @@ switch s(1).type
       else
         tmp = subsref(obj,s(1));
         
-        objFields = {'array' 'dimNames' 'dimLabels'};
-        if ismember(s(1).subs,objFields)&&isequal(s(2).type,'()')          
+        objFields = {'array' 'dimNames' 'dimLabels' 'dimValues' 'dimUnits'};
+        if ismember(s(1).subs,objFields)&&isequal(s(2).type,'()')         
+          % Parenthetical referencing into a
           s(2).subs = obj.getNumericIndex(s(2).subs{:});
           varargout = {subsref(tmp,s(2:end))};
         else

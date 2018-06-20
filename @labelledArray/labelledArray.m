@@ -33,6 +33,11 @@ classdef labelledArray < handle & matlab.mixin.Copyable
   %               of the dimValues being cell strings, they must be numeric
   %               vectors.
   %
+  % %%%%%%%%%%%%
+  % NOTE: When referring to this set of additional properties below, the acronym
+  % NLUV is used.
+  % %%%%%%%%%%%%
+  %
   % Overloaded Functions
   % --------------------
   %    size : Behaves in one of two ways:
@@ -111,7 +116,7 @@ classdef labelledArray < handle & matlab.mixin.Copyable
       
       if nargin>0
         
-        checkType = @(x) iscell(x) && ((size(x,2)==2)||(numel(x)==ndims(array)));
+        checkType = @(x) iscell(x) && ((size(x,2)==2)||(numel(x)>=ndims(array)));
         
         % Input parsing
         p = inputParser;
@@ -147,12 +152,17 @@ classdef labelledArray < handle & matlab.mixin.Copyable
       %	 2) If obj is an array of labelledArray objects, returns the
       %				size of the array.
       %
-      if numel(obj)==1
+      % Size will have trailing singleton dimensions if NLUV have been
+      % assigned for them.
+      %
+      if numel(obj)==1        
         if ~exist('dim','var')
-          out = size(obj.array);
+          out = ones(1,obj.ndims);
+          tmp = size(obj.array);
+          out(1:numel(tmp)) = tmp;
         else
           out = size(obj.array,dim);
-        end;
+        end;                
       else
         out = builtin('size',obj);
       end
@@ -162,15 +172,17 @@ classdef labelledArray < handle & matlab.mixin.Copyable
     function out = ndims(obj)
       % Get dimensionality of array
       %
-      % Ignores trailing singleton dimensions.
+      % Ignores trailing singleton dimensions unless they have been
+      % assigned NLUV
+      %
       %
       
       if numel(obj)==1
-%         if isempty(obj.array_)
-%           out = 0;
-%           return;
-%         end
         out = builtin('ndims',obj.array_);
+        out = max([out numel(obj.dimNames_)]);
+        out = max([out numel(obj.dimLabels_)]);
+        out = max([out numel(obj.dimUnits_)]);
+        out = max([out numel(obj.dimValues_)]);
       else
         out = builtin('ndims',obj);
       end;
@@ -484,19 +496,27 @@ classdef labelledArray < handle & matlab.mixin.Copyable
       for idxDim = 1:obj.ndims
          % Dimension names must all be the same
          if ~(isequal(obj.dimNames{idxDim},b.dimNames{idxDim})), return; end;
+         if ~(isequal(obj.dimUnits{idxDim},b.dimUnits{idxDim})), return; end;
          
          % Check Dimension Labels
-         if checkBSX           
+         if checkBSX        
+           % When 
            if (size(obj,idxDim)~=1)&&(b.ndims<=idxDim)&&(size(b,idxDim)~=1)
              % Non-unitary dimensions need to be the same.
-             if ~(isequal(obj.dimLabels{idxDim},b.dimLabels{idxDim})), 
+             if ~(isequal(obj.dimLabels{idxDim},b.dimLabels{idxDim})) 
                return; 
              end;
+             if ~(isequal(obj.dimValues{idxDim},b.dimValues{idxDim}))
+               return;
+             end
            end;
          else
            if ~(isequal(obj.dimLabels{idxDim},b.dimLabels{idxDim}))
              return;
            end;
+           if ~(isequal(obj.dimValues{idxDim},b.dimValues{idxDim}))
+               return;
+           end
          end
       end
                  
@@ -641,7 +661,12 @@ classdef labelledArray < handle & matlab.mixin.Copyable
       
       % Assign dimLabels if All Checks Passed
       for i = 1:size(val,1)        
-        obj.([propName '_']){val{i,1}} = val{i,2};                
+        if (numel(val{i,2})==1)&&castCharCell
+          tmp = val{i,2};
+          obj.([propName '_']){val{i,1}} = tmp{1};                
+        else
+          obj.([propName '_']){val{i,1}} = val{i,2};                
+        end;
       end
       
     end    
@@ -745,7 +770,7 @@ classdef labelledArray < handle & matlab.mixin.Copyable
       
       
       assert(all(floor(idxOut)==idxOut)&&all(idxOut>=1)&&all(idxOut<=obj.ndims),...
-                'Requested dimension is out of range');
+                'One or more requested dimensions is out of range');
       
     end
     
@@ -762,7 +787,7 @@ classdef labelledArray < handle & matlab.mixin.Copyable
       % varargin : Cell array of indexes into each dimension.
       %              This must satisfy numel(varargin)==obj.ndims
       %              Provided indexing dimValues can be:
-      %                       ':' : All dimValues
+      %                       ':' : All values
       %                cellString : Reference by name
       %             numericVector : Reference by numeric index
       %
@@ -775,8 +800,8 @@ classdef labelledArray < handle & matlab.mixin.Copyable
       %
       %
       
-      assert(numel(obj)==1,'Multiple objects passed. Not sure why we''re getting here');
-     
+      assert(numel(obj)==1,'Multiple objects passed. Not sure why we''re getting here');           
+      
       % Get Indexing for each dimension
       idxOut = cell(obj.ndims,1);
       for idxDim = 1:obj.ndims
@@ -810,6 +835,9 @@ classdef labelledArray < handle & matlab.mixin.Copyable
       %  idxOut : Numeric index into the selected dimension
       %
       
+      
+      % Determine if string matching can be used for the requested
+      % dimension
       if isempty(obj.dimLabels_{dim})
         cellIn = [];
         isStringValid = false;
@@ -818,6 +846,7 @@ classdef labelledArray < handle & matlab.mixin.Copyable
         isStringValid = true;
       end;
       
+      % Find the correct numeric indices
       if isequal(index,':')
         %% Requested Everything
         idxOut = index;
@@ -825,7 +854,8 @@ classdef labelledArray < handle & matlab.mixin.Copyable
         
       elseif islogical(index)
         %% Logical Indexing
-        assert(numel(index)==size(obj,dim),'FOOOO_-');
+        assert(numel(index)==size(obj,dim),...
+          'Logical indexing must match the size of the dimension');
         idxOut = find(index);
         return;
         
@@ -976,9 +1006,10 @@ classdef labelledArray < handle & matlab.mixin.Copyable
       isValid = true;
       validCell = cell(size(val,1),2);
       
-      nRows = size(val,1);
+      nRows  = size(val,1);
       nCols  = size(val,2);
       
+      % Parse input formatted as {dim1,val;dim2,val2;...}
       if ((nRows>1)&&(nCols==2))||...
           (isnumeric(val{1,1})&&(nCols==2))
         for i = 1:size(val,1)
@@ -998,12 +1029,17 @@ classdef labelledArray < handle & matlab.mixin.Copyable
       end;
       if isValid, return; end;
       
-      % All dimensions are defined
+      % Parse input formatted as {dim1, dim2, .... }
       if numel(val)>=obj.ndims
         validCell = cell(numel(val),2);
-        for i = 1:numel(val)
-          validCell{i,1} = i;
-          validCell{i,2} = val{i};
+        for idxDim = 1:numel(val)
+          validCell{idxDim,1} = idxDim;
+          if (idxDim>obj.ndims)&&iscell(val{idxDim})
+            assert(numel(val{idxDim})==1,...
+              'More than one value supplied for a singleton dimension');
+          end
+          
+          validCell{idxDim,2} = val{idxDim};
         end
         return;
       end
@@ -1012,8 +1048,8 @@ classdef labelledArray < handle & matlab.mixin.Copyable
     end
     
     function [isChanged,newVal] = fixDimLength(obj,val)
-      
-      if numel(val)~=obj.ndims
+      % Fix input length to match number of dimensions
+      if numel(val)<obj.ndims
         newVal = cell(obj.ndims,1);
         newVal(1:numel(val)) = val;
         isChanged=true;
