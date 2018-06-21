@@ -232,7 +232,18 @@ classdef labelledArray < handle & matlab.mixin.Copyable
     function out = times(obj,b)
       out = bsxfun(@times,obj,b);
     end;
+   
+    function out = power(obj,b)
+      out = obj.copy;
+      out.array_ = power(obj.array_,b);      
+    end;
     
+    function out = sqrt(obj)
+      out = obj.copy;
+      obj.array_ = sqrt(obj.array_);
+    end;
+      
+
     function out = cat(dim,obj,a,varargin)
       
       assert(isa(a,class(obj)),'Can only concatenate like objects');
