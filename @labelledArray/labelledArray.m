@@ -9,12 +9,12 @@ classdef labelledArray < handle & matlab.mixin.Copyable
   %
   % Optional Param-Value Inputs
   % ---------------------------
-  %  'dimNames'  : dimNames for each dimension.
-  %  'dimLabels' : An cell array defining labels for the elements along
+  %  'dimNames'  : Cell string array of names for each dimension.
+  %  'dimLabels' : A cell array defining labels for the elements along
   %                   one or more dimensions.
   %                 Labels can be assigned through the constructor in one
   %                 of two ways:
-  %                   1) Provide a cell array of size {nDim x 1} or 
+  %                   1) Provide a cell array of size {nDim x 1} or
   %                       {1 X nDim}, where nDim is the number of
   %                       dimensions. Each element in the cell must either
   %                       be empty, or be a cellstr with numel equal to the
@@ -27,7 +27,11 @@ classdef labelledArray < handle & matlab.mixin.Copyable
   %                       in obj.dimNames. Each cellstring of dimLabels
   %                       must have a number of elements equal to the
   %                       current size of the array along that dimension.
-  %  'dimUnits'  : A cell array of units for one or more dimensions.
+  %  'dimUnits'  : A cell array of units for one or more dimensions. This
+  %                   be provided either as a single character string (same
+  %                   units for all elements along that dimension), or as a
+  %                   cell array of strings with length equal to the size
+  %                   of that dimension (Different units for each element).
   %  'dimValues' : A cell array of dimension values along one or more dimensions. Cell
   %               array should be formatted as for 'dimLabels', except instead
   %               of the dimValues being cell strings, they must be numeric
@@ -69,7 +73,7 @@ classdef labelledArray < handle & matlab.mixin.Copyable
   %                     1) If obj is an array of labelledarray objects, this
   %                          references into the array
   %                     2) If obj is a single labelledarray object, this
-  %                          returns a new object with the array all 
+  %                          returns a new object with the array all
   %                          associated information subselected according to the
   %                          indices.
   %
@@ -86,7 +90,7 @@ classdef labelledArray < handle & matlab.mixin.Copyable
   % directly indexed using those labels:
   %
   %   IE:     obj(:,{'A' 'B' 'C'},:)
-  %       or  obj(:,'A',:) 
+  %       or  obj(:,'A',:)
   %
   % Will both work for a three dimensional labelledArray where elements
   % along the second dimension have been assigned the labels 'A', 'B', and
@@ -95,6 +99,7 @@ classdef labelledArray < handle & matlab.mixin.Copyable
   %
   properties (Hidden,Dependent)
     array
+    dimensions
     dimNames
     dimLabels
     dimValues
@@ -113,7 +118,7 @@ classdef labelledArray < handle & matlab.mixin.Copyable
     
     %%
     function obj = labelledArray(array,varargin)
-      
+      %% Main object constructor
       if nargin>0
         
         checkType = @(x) iscell(x) && ((size(x,2)==2)||(numel(x)>=ndims(array)));
@@ -121,10 +126,10 @@ classdef labelledArray < handle & matlab.mixin.Copyable
         % Input parsing
         p = inputParser;
         p.addRequired('array',@(x) (isnumeric(x)||isa(x,'labelledArray')));
-        p.addParameter('dimNames',[],@(x) isempty(x)||checkType(x));
-        p.addParameter('dimLabels',[],@(x) isempty(x)||checkType(x));
-        p.addParameter('dimUnits',[],@(x) isempty(x)||checkType(x));
-        p.addParameter('dimValues',[],@(x) isempty(x)||checkType(x));        
+        p.addParameter('dimNames' , [] , @(x) isempty(x)||checkType(x));
+        p.addParameter('dimLabels', [] , @(x) isempty(x)||checkType(x));
+        p.addParameter('dimUnits' , [] , @(x) isempty(x)||checkType(x));
+        p.addParameter('dimValues', [] , @(x) isempty(x)||checkType(x));
         p.parse(array,varargin{:});
         
         % Property Assignment
@@ -141,7 +146,7 @@ classdef labelledArray < handle & matlab.mixin.Copyable
     %%%%%%%%%%%%%%%%%%%%%%%
     
     %%
-    function out = size(obj,dim)      
+    function out = size(obj,dim)
       %% Return the size of a labelledArray object
       %
       % out = size(obj,dim)
@@ -155,14 +160,14 @@ classdef labelledArray < handle & matlab.mixin.Copyable
       % Size will have trailing singleton dimensions if NLUV have been
       % assigned for them.
       %
-      if numel(obj)==1        
+      if numel(obj)==1
         if ~exist('dim','var')
           out = ones(1,obj.ndims);
           tmp = size(obj.array);
           out(1:numel(tmp)) = tmp;
         else
           out = size(obj.array,dim);
-        end;                
+        end;
       else
         out = builtin('size',obj);
       end
@@ -188,6 +193,10 @@ classdef labelledArray < handle & matlab.mixin.Copyable
       end;
     end
     
+    function ind = end(obj,k,n)
+      ind = obj.size(k);
+    end
+    
     %%
     function out = permute(obj,order)
       % Permute the order of the array
@@ -208,31 +217,53 @@ classdef labelledArray < handle & matlab.mixin.Copyable
       out = obj.copy;
       out.array_   = permute(obj.array_,newOrder);
       out.dimNames_  = obj.dimNames_(newOrder);
-      out.dimLabels_ = obj.dimLabels_(newOrder); 
+      out.dimLabels_ = obj.dimLabels_(newOrder);
       out.dimUnits_  = obj.dimUnits_(newOrder);
       out.dimValues_ = obj.dimValues_(newOrder);
     end
     
-    function out = plus(obj,b)
-      out = bsxfun(@plus,obj,b);
+    function out = cat(dim,obj,a,varargin)
+      % Concatenate labelledArray objects
+      %
+      %
+      
+      assert(isa(a,class(obj)),'Can only concatenate like objects');
+      
+      % Concatenating with empty objects is quick.
+      if isempty(obj), out = a;   return; end;
+      if isempty(a),   out = obj; return; end;
+      
+      newLabels = [];
+      for idxDim = 1:obj.ndims
+        assert(isequal(obj.dimNames{idxDim},a.dimNames{idxDim}),...
+          'Dimension names are inconsistent');
+        if ( idxDim==dim )
+          newLabels = cat(1,obj.dimLabels{idxDim},a.dimLabels{idxDim});
+          newUnits  = cat(1,obj.dimUnits{idxDim},a.dimUnits{idxDim});
+          newValues = cat(1,obj.dimValues{idxDim},a.dimValues{idxDim});
+        else
+          assert(isequal(obj.dimLabels{idxDim},a.dimLabels{idxDim}),...
+            'Dimension labels are inconsistent');
+        end
+      end
+      
+      % Build output object
+      out = obj.copy;
+      out.array_ = cat(dim,obj.array_,a.array_);
+      out.dimLabels{dim} = newLabels;
+      out.dimUnits{dim}  = newUnits;
+      out.dimValues{dim} = newValues;
+      
+      if ~isempty(varargin)
+        % Recurse when concatenating multiple objects
+        out = cat(dim,out,varargin{:});
+      end;
+      
     end
     
-    function out = minus(obj,b)
-      out = bsxfun(@minus,obj,b);
-    end
+    %% Functions that always operate on the data in place
+    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     
-    function out = rdivide(obj,b)
-      out = bsxfun(@rdivide,obj,b);
-    end
-    
-    function out = ldivide(obj,b)
-      out = bsxfun(@ldivide,obj,b);
-    end
-    
-    function out = times(obj,b)
-      out = bsxfun(@times,obj,b);
-    end;
-   
     function out = power(obj,b)
       out = obj.copy;
       out.array_ = power(obj.array_,b);      
@@ -242,80 +273,27 @@ classdef labelledArray < handle & matlab.mixin.Copyable
       out = obj.copy;
       obj.array_ = sqrt(obj.array_);
     end;
-      
-
-    function out = cat(dim,obj,a,varargin)
-      
-      assert(isa(a,class(obj)),'Can only concatenate like objects');
-      
-      % Concatenating with empty objects is quick.
-      if isempty(obj)        
-        out = a;
-        return;
-      end;
-      
-      if isempty(a)
-        out = obj;
-        return;
-      end;
-      
-      newLabels = [];
-      for idxDim = 1:obj.ndims
-        assert(isequal(obj.dimNames{idxDim},a.dimNames{idxDim}),...
-                  'Dimension names are inconsistent');
-        if ( idxDim==dim )
-          newLabels = cat(1,obj.dimLabels{idxDim},a.dimLabels{idxDim});
-        else
-          assert(isequal(obj.dimLabels{idxDim},a.dimLabels{idxDim}),...
-                  'Dimension labels are inconsistent');
-        end
-      end            
-      
-      out = obj.copy;
-      out.array_ = cat(dim,obj.array_,a.array_);
-      out.dimLabels{dim} = newLabels;
-                      
-      if ~isempty(varargin)
-        % Recurse when concatenating multiple objects
-        out = cat(dim,out,varargin{:});
-      end;
-      
-    end
     
-    function out = sum(obj,dim)
-      if ~exist('dim','var'),dim = 1; end;
-      out = applyDimFunc(@var,obj,1,dim);
-    end;
+    %% Helper function for functions that collapse a dimension to a singleton
+    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     
-    function out = mean(obj,dim)
-      if ~exist('dim','var'), dim = 1; end;      
-      out = applyDimFunc(@var,obj,1,dim);
-    end
-    
-    function out = std(obj,W,dim)
-      if ~exist('dim','var'), dim = 1; end;
-      if ~exist('W','var'), W = 0; end;
-      out = applyDimFunc(@var,obj,2,W,dim);      
-    end
-    
-    function out = var(obj,W,dim)
-      if ~exist('dim','var'), dim = 1; end;
-      if ~exist('W','var'), W = 0; end;      
-      out = applyDimFunc(@var,obj,2,W,dim);
-    end;
-    
-    function out = applyDimFunc(funcHandle,obj,idxDim,varargin)      
-      % For functions that collapse a dimension to a singleton
+    function out = applyDimFunc(funcHandle,obj,idxDim,varargin)
+      % Apply function handle that collapses a dimension to a singleton
       %
       % Inputs
       % ------
       %   funcHandle : Function handle
       %                  Will be called as:
       %                  funcHandle(obj.array,varargin{:});
-      %         obj
+      %         obj  : labelledArray object to operate on
       %       idxDim : Index into varargin of the dimension argument
       %     varargin : Additional arguments for funcHandle. One of these
       %                 must be a numeric dimension index.
+      %
+      % Outputs
+      % -------
+      %  out = labelledArray object after function application
+      %
       %
       
       dim = varargin{idxDim};
@@ -324,16 +302,41 @@ classdef labelledArray < handle & matlab.mixin.Copyable
       out.dimLabels{dim} = func2str(funcHandle);
       out.dimUnits{dim} = [func2str(funcHandle) '(' out.dimUnits{dim} ')'];
       if ~isempty(obj.dimLabels{dim})
-        out.dimLabels{dim} = [ out.dimLabels{dim} '(' strjoin(obj.dimLabels{dim}) ')'];            
-      end;     
+        out.dimLabels{dim} = [ out.dimLabels{dim} '(' strjoin(obj.dimLabels{dim}) ')'];
+      end;
       if ~isempty(obj.dimValues{dim})
         % Return the average of the values.
         out.dimValues{dim} = mean(out.dimValues{dim});
       end
       
     end
+
+    %% Functions that use applyDimFunc
+    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    function out = sum(obj,dim)
+      if ~exist('dim','var'),dim = 1; end;
+      out = applyDimFunc(@var,obj,1,dim);
+    end;
     
+    function out = mean(obj,dim)
+      if ~exist('dim','var'), dim = 1; end;
+      out = applyDimFunc(@var,obj,1,dim);
+    end
     
+    function out = std(obj,W,dim)
+      if ~exist('dim','var'), dim = 1; end;
+      if ~exist('W','var'), W = 0; end;
+      out = applyDimFunc(@var,obj,2,W,dim);
+    end
+    
+    function out = var(obj,W,dim)
+      if ~exist('dim','var'), dim = 1; end;
+      if ~exist('W','var'), W = 0; end;
+      out = applyDimFunc(@var,obj,2,W,dim);
+    end;
+    
+    %% Class-specific bsxfun function
+    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     function objOut = bsxfun(funcHandle,obj,b)
       % Use bsxfun to apply funcHandle to obj.tfX
       %
@@ -358,9 +361,9 @@ classdef labelledArray < handle & matlab.mixin.Copyable
       %   A timeFrequencyDecomposition obj:  coeff = b.tfX
       %                          OTHERWISE:  coeff = b;
       %
-      %      
-            
-      for idxObj = 1:numel(obj)        
+      %
+      
+      for idxObj = 1:numel(obj)
         if isa(b,'labelledArray')
           assert(isConsistent(obj(idxObj),b),'Inconsistent decomposition sizes');
           coeff = b.array;
@@ -368,7 +371,7 @@ classdef labelledArray < handle & matlab.mixin.Copyable
         else
           coeff = b;
           names = obj.dimNames;
-          labels = obj.dimLabels;          
+          labels = obj.dimLabels;
         end;
         
         objOut(idxObj) = copy(obj(idxObj));
@@ -384,30 +387,53 @@ classdef labelledArray < handle & matlab.mixin.Copyable
       if numel(objOut)>1
         objOut = reshape(objOut,size(obj));
       end;
-    end      
+    end
+    
+    %% Functions that use bsxfun
+    %%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    function out = plus(obj,b)
+      out = bsxfun(@plus,obj,b);
+    end
+    
+    function out = minus(obj,b)
+      out = bsxfun(@minus,obj,b);
+    end
+    
+    function out = rdivide(obj,b)
+      out = bsxfun(@rdivide,obj,b);
+    end
+    
+    function out = ldivide(obj,b)
+      out = bsxfun(@ldivide,obj,b);
+    end
+    
+    function out = times(obj,b)
+      out = bsxfun(@times,obj,b);
+    end;    
     
     
     %% array Get/Set Methods
+    %%%%%%%%%%%%%%%%%%%%%%%%
     function set.array(obj,val)
       % Done this way so it can be overloaded by subclasses.
       obj.setArray(val);
-    end;    
+    end;
     
     function out = get.array(obj)
       out = obj.array_;
     end;
     
     %% dimNames Get/Set Methods
-    %%%%%%%%%%%%%%%%%%%%%%%
+    %%%%%%%%%%%%%%%%%%%%%%%%%%%
     function set.dimNames(obj,val)
       % Set Dimension Names
-      %      
+      %
       typeCheckFunction = @(x) iscellstr(x);
       typeCheckErr = 'dimNames must be strings or cellstrings';
       
-      obj.setProperty('dimNames',val,true,true,typeCheckFunction,typeCheckErr);      
+      obj.setProperty('dimNames',val,true,true,typeCheckFunction,typeCheckErr);
     end
-        
+    
     function out = get.dimNames(obj)
       out = obj.dimNames_;
       [isChanged,out] = obj.fixDimLength(out);
@@ -417,63 +443,59 @@ classdef labelledArray < handle & matlab.mixin.Copyable
     end;
     
     %% dimLabels Get/Set Methods
-    %%%%%%%%%%%%%%%%%%%%%%%%
-    function set.dimLabels(obj,val)     
+    %%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    function set.dimLabels(obj,val)
       typeCheckFunc = @(x) iscellstr(x);
       typeCheckErr = 'dimLabels must be strings or cellstrings';
       
-      obj.setProperty('dimLabels',val,true,false,typeCheckFunc,typeCheckErr);        
+      obj.setProperty('dimLabels',val,true,false,typeCheckFunc,typeCheckErr);
     end
     
     %%
     function out = get.dimLabels(obj)
-      out = obj.dimLabels_;
-      [isChanged,out] = obj.fixDimLength(out);
+      [isChanged,out] = obj.fixDimLength(obj.dimLabels_);
       if isChanged
         obj.dimLabels_ = out;
-      end;      
+      end;
     end;
     
     %% dimUnits Get/Set Methods
-    %%%%%%%%%%%%%%%%%%%%%%%%
-    function set.dimUnits(obj,val)      
+    %%%%%%%%%%%%%%%%%%%%%%%%%%%
+    function set.dimUnits(obj,val)
       typeCheckFunc = @(x) iscellstr(x);
       typeCheckErr = 'dimUnits must be strings or cellstrings';
       
-      obj.setProperty('dimUnits',val,true,true,typeCheckFunc,typeCheckErr);      
+      obj.setProperty('dimUnits',val,true,true,typeCheckFunc,typeCheckErr);
     end
     
     function out = get.dimUnits(obj)
-      out = obj.dimUnits_;
-      
-      [isChanged,out] = obj.fixDimLength(out);
+      [isChanged,out] = obj.fixDimLength(obj.dimUnits_);
       if isChanged
         obj.dimUnits_ = out;
-      end;            
-    end;    
-   
+      end;
+    end;
+    
     %% dimValue Get/Set Methods
     %%%%%%%%%%%%%%%%%%%%%%%%
-    function set.dimValues(obj,val)      
+    function set.dimValues(obj,val)
       typeCheckFunc = @(x) isnumeric(x)&&isvector(x);
       typeCheckErr = 'Value inputs must be numeric vectors';
       
-      obj.setProperty('dimValues',val,false,true,typeCheckFunc,typeCheckErr);   
+      obj.setProperty('dimValues',val,false,true,typeCheckFunc,typeCheckErr);
     end
     
     function out = get.dimValues(obj)
-      out = obj.dimValues_;
-      [isChanged,out] = obj.fixDimLength(out);
+      [isChanged,out] = obj.fixDimLength(obj.dimValues_);
       if isChanged
         obj.dimValues_ = out;
       end;
-    end;    
+    end;
     
   end
   
   %% Hidden Methods
   %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-  %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%  
+  %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
   methods (Hidden)
     
     function isValid = isConsistent(obj,b,checkBSX)
@@ -486,14 +508,16 @@ classdef labelledArray < handle & matlab.mixin.Copyable
       % ------
       %       obj : labelledArray object
       %         b : labelledArray object
-      %  checkBSX : Flag to check compatibility 
+      %  checkBSX : Flag to allow dimension mismatch if it satisfies
+      %               conditions for applying bsxfun.
+      %
       
       if ~exist('checkBSX','var'), checkBSX = true; end;
       
       isValid = false;
       
       if ~isa(b,'labelledArray'), return; end;
-     % if ~(obj.ndims==b.ndims),  return; end; % Might not be needed?
+      % if ~(obj.ndims==b.ndims),  return; end; % Might not be needed?
       
       if checkBSX
         sizeValid = obj.validForBSXFUN(size(obj),size(b));
@@ -501,91 +525,91 @@ classdef labelledArray < handle & matlab.mixin.Copyable
       else
         if ~(obj.ndims==b.ndims)
           return;
-        end;        
-      end;      
+        end;
+      end;
       
       for idxDim = 1:obj.ndims
-         % Dimension names must all be the same
-         if ~(isequal(obj.dimNames{idxDim},b.dimNames{idxDim})), return; end;
-         if ~(isequal(obj.dimUnits{idxDim},b.dimUnits{idxDim})), return; end;
-         
-         % Check Dimension Labels
-         if checkBSX        
-           % When 
-           if (size(obj,idxDim)~=1)&&(b.ndims<=idxDim)&&(size(b,idxDim)~=1)
-             % Non-unitary dimensions need to be the same.
-             if ~(isequal(obj.dimLabels{idxDim},b.dimLabels{idxDim})) 
-               return; 
-             end;
-             if ~(isequal(obj.dimValues{idxDim},b.dimValues{idxDim}))
-               return;
-             end
-           end;
-         else
-           if ~(isequal(obj.dimLabels{idxDim},b.dimLabels{idxDim}))
-             return;
-           end;
-           if ~(isequal(obj.dimValues{idxDim},b.dimValues{idxDim}))
-               return;
-           end
-         end
+        % Dimension names must all be the same
+        if ~(isequal(obj.dimNames{idxDim},b.dimNames{idxDim})), return; end;
+        if ~(isequal(obj.dimUnits{idxDim},b.dimUnits{idxDim})), return; end;
+        
+        % Check Dimension Labels
+        if checkBSX
+          % When
+          if (size(obj,idxDim)~=1)&&(b.ndims<=idxDim)&&(size(b,idxDim)~=1)
+            % Non-unitary dimensions need to be the same.
+            if ~(isequal(obj.dimLabels{idxDim},b.dimLabels{idxDim}))
+              return;
+            end;
+            if ~(isequal(obj.dimValues{idxDim},b.dimValues{idxDim}))
+              return;
+            end
+          end;
+        else
+          if ~(isequal(obj.dimLabels{idxDim},b.dimLabels{idxDim}))
+            return;
+          end;
+          if ~(isequal(obj.dimValues{idxDim},b.dimValues{idxDim}))
+            return;
+          end
+        end
       end
-                 
+      
       % Passed all the tests, so its valid.
-      isValid = true;      
-    end      
-
-   function [varargout] = getConsistentDimensions(obj,b)
-     % Get output dimensions for bsxfun
-     %
-     % Inputs
-     % ------
-     %   obj : labelledArray object
-     %     b : labelledArray object
-     %
-     % Outputs
-     % -------
-     %   names : dimNames for the 
-     %  labels : dimLabels for the
-     %
-     
+      isValid = true;
+    end
+    
+    function [varargout] = getConsistentDimensions(obj,b)
+      % Get output dimensions for bsxfun
+      %
+      % Inputs
+      % ------
+      %   obj : labelledArray object
+      %     b : labelledArray object
+      %
+      % Outputs
+      % -------
+      %   names : dimNames for the
+      %  labels : dimLabels for the
+      %
+      
       assert(isa(b,'labelledArray'),...
-                'Second input must be a labelledArray object');
-              
-      assert(isConsistent(obj,b),'Inconsistent decomposition sizes');  
+        'Second input must be a labelledArray object');
+      
+      assert(isConsistent(obj,b),'Inconsistent decomposition sizes');
       
       sizeEqual = crlEEG.util.validation.compareSizes(size(obj),size(b));
       
       nDimsOut = numel(sizeEqual);
       
-      names  = cell(nDimsOut,1); 
-      labels = cell(nDimsOut,1); 
+      names  = cell(nDimsOut,1);
+      labels = cell(nDimsOut,1);
       
-      for idxDim = 1:nDimsOut        
+      for idxDim = 1:nDimsOut
         if sizeEqual(idxDim)||(size(b,idxDim)==1)
-          names{idxDim}  = obj.dimNames{idxDim}; 
+          names{idxDim}  = obj.dimNames{idxDim};
           labels{idxDim} = obj.dimLabels{idxDim};
           units{idxDim}  = obj.dimUnits{idxDim};
           values{idxDim} = obj.dimValues{idxDim};
         elseif size(obj,idxDim)==1
-          names{idxDim}  = b.dimNames{idxDim};  
+          names{idxDim}  = b.dimNames{idxDim};
           labels{idxDim} = b.dimLabels{idxDim};
           units{idxDim}  = b.dimUnits{idxDim};
-          values{idxDim} = b.dimValues{idxDim};          
+          values{idxDim} = b.dimValues{idxDim};
         else
           error('Shouldn''t be getting here');
         end
-      end   
+      end
       
       if nargout>=1, varargout{1} = names; end;
       if nargout>=2, varargout{2} = labels; end;
       if nargout>=3, varargout{3} = units; end;
       if nargout>=4, varargout{4} = labels; end;
       
-   end      
+    end
     
-   
-  end  
+    
+  end
   
   %% Hidden Static Methods
   %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -605,14 +629,14 @@ classdef labelledArray < handle & matlab.mixin.Copyable
       isValid = all((tmpA(~test)==1)|(tmpB(~test)==1));
       
     end
-
+    
   end
   
   %% Protected Methods
   %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
   %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
   methods (Access=protected)
-
+    
     function setProperty(obj,propName,val,castCharCell,isSingleOk,typeCheckFunc,typeCheckErr)
       % Protected utility function for internal setting of properties
       %
@@ -623,7 +647,7 @@ classdef labelledArray < handle & matlab.mixin.Copyable
       %
       % Inputs
       % ------
-      %            obj : labelledArray object 
+      %            obj : labelledArray object
       %       propName : String with propertyname to set
       %            val : Value to set to the property
       %   castCharCell : Flag to turn on typecasting of character string to
@@ -636,7 +660,7 @@ classdef labelledArray < handle & matlab.mixin.Copyable
       %
       
       
-      if isempty(val)        
+      if isempty(val)
         % Empty cell for each dimension
         obj.([propName '_']) = cell(obj.ndims,1);
         return;
@@ -648,7 +672,7 @@ classdef labelledArray < handle & matlab.mixin.Copyable
       for i = 1:size(val,1)
         currDim = val{i,1};
         currVal = val{i,2};
-                     
+        
         assert(isnumeric(currDim)&&isscalar(currDim),...
           'Dimension parameter must be a numeric scalar');
         
@@ -659,28 +683,28 @@ classdef labelledArray < handle & matlab.mixin.Copyable
             val{i,2} = strtrim(currVal);
           end
         end
-       
+        
         % Check Type
         assert(isempty(currVal)||typeCheckFunc(currVal),typeCheckErr);
         
         % Check Size
         assert(isempty(currVal)||...
-               (numel(currVal)==size(obj,currDim))||...
-               (isSingleOk&&(numel(currVal)==1)),...
+          (numel(currVal)==size(obj,currDim))||...
+          (isSingleOk&&(numel(currVal)==1)),...
           ['Must provide ' propName 'for the full dimension']);
       end
       
       % Assign dimLabels if All Checks Passed
-      for i = 1:size(val,1)        
+      for i = 1:size(val,1)
         if (numel(val{i,2})==1)&&castCharCell
           tmp = val{i,2};
-          obj.([propName '_']){val{i,1}} = tmp{1};                
+          obj.([propName '_']){val{i,1}} = tmp{1};
         else
-          obj.([propName '_']){val{i,1}} = val{i,2};                
+          obj.([propName '_']){val{i,1}} = val{i,2};
         end;
       end
       
-    end    
+    end
     
     
     %%
@@ -720,7 +744,7 @@ classdef labelledArray < handle & matlab.mixin.Copyable
       end
       
       assert(numel(unique(newOrder))==numel(newOrder),...
-                'Each dimension can only be used once');
+        'Each dimension can only be used once');
       
     end;
     
@@ -734,7 +758,7 @@ classdef labelledArray < handle & matlab.mixin.Copyable
       % ------
       %		obj  : labelledArray object
       %	dimRef : Numeric vector of dimension indices, character string with
-      %             a single name, or a cell array of numeric indices and 
+      %             a single name, or a cell array of numeric indices and
       %             character strings.
       %
       % Outputs
@@ -745,7 +769,7 @@ classdef labelledArray < handle & matlab.mixin.Copyable
       %
       
       assert((isnumeric(dimRefs)&&isvector(dimRefs))||...
-              ischar(dimRefs)||iscell(dimRefs),...
+        ischar(dimRefs)||iscell(dimRefs),...
         'See getDimensionIndex help for input format requirements');
       
       if ischar(dimRefs), dimRefs = {dimRefs}; end;
@@ -761,27 +785,27 @@ classdef labelledArray < handle & matlab.mixin.Copyable
       
       % Get numeric indices from a cell array
       idxOut = nan(1,numel(dimRefs));
-       
+      
       for idxRef = 1:numel(dimRefs)
-         currRef = dimRefs{idxRef};
-         if ischar(currRef)     
-           % Character Referencing                                   
-           if ~isempty(validNames)
-             matchedName = validatestring(currRef,validNames);
-             idx{idxRef} = find(ismember(obj.dimNames,matchedName));
-           end;
-
-         elseif isnumeric(currRef)&&isscalar(currRef)
-           % Numeric Indexing
-           idxOut(idxRef) = currRef;
-         else
-           error('Unknown reference type');
-         end           
-       end
+        currRef = dimRefs{idxRef};
+        if ischar(currRef)
+          % Character Referencing
+          if ~isempty(validNames)
+            matchedName = validatestring(currRef,validNames);
+            idx{idxRef} = find(ismember(obj.dimNames,matchedName));
+          end;
+          
+        elseif isnumeric(currRef)&&isscalar(currRef)
+          % Numeric Indexing
+          idxOut(idxRef) = currRef;
+        else
+          error('Unknown reference type');
+        end
+      end
       
       
       assert(all(floor(idxOut)==idxOut)&&all(idxOut>=1)&&all(idxOut<=obj.ndims),...
-                'One or more requested dimensions is out of range');
+        'One or more requested dimensions is out of range');
       
     end
     
@@ -811,12 +835,12 @@ classdef labelledArray < handle & matlab.mixin.Copyable
       %
       %
       
-      assert(numel(obj)==1,'Multiple objects passed. Not sure why we''re getting here');           
+      assert(numel(obj)==1,'Multiple objects passed. Not sure why we''re getting here');
       
       % Get Indexing for each dimension
       idxOut = cell(obj.ndims,1);
       for idxDim = 1:obj.ndims
-        if idxDim<=numel(varargin)          
+        if idxDim<=numel(varargin)
           idxOut{idxDim} = obj.indexIntoDimension(idxDim,varargin{idxDim});
         else
           idxOut{idxDim} = ':';
@@ -839,7 +863,7 @@ classdef labelledArray < handle & matlab.mixin.Copyable
       %           (string or cellstr). When provided with string/cellstr,
       %           the values in obj.dimLabels{dim} are used to index.
       %           Providing a string that does not match anything in the
-      %           object will produce an error.      
+      %           object will produce an error.
       %
       % Outputs
       % -------
@@ -879,7 +903,7 @@ classdef labelledArray < handle & matlab.mixin.Copyable
         %idxOut(idxOut<1) = nan;
         %idxOut(idxOut>numel(cellIn)) = nan;
         return;
-                
+        
       elseif ischar(index)||iscellstr(index)
         %% String Reference
         if ~isStringValid
@@ -928,7 +952,7 @@ classdef labelledArray < handle & matlab.mixin.Copyable
       %%%%
       
       assert(isa(valObj,'labelledArray'),...
-              'Can only copy from a labelledArray object');
+        'Can only copy from a labelledArray object');
       
       out = obj.copy;
       out.array_     = valObj.array_;
@@ -960,22 +984,22 @@ classdef labelledArray < handle & matlab.mixin.Copyable
       dimIdx = obj.getNumericIndex(varargin{:});
       
       % Input assertions
-      assert(numel(obj)==1,'Passed multiple objects. Not sure why we''re getting here');      
+      assert(numel(obj)==1,'Passed multiple objects. Not sure why we''re getting here');
       assert(numel(varargin)==obj.ndims,...
         'Must include referencing for all dimensions');
       
       % Allocate Memory
       tmparray = obj.array(varargin{:});
-      tmpdimLabels = cell(obj.ndims,1);      
+      tmpdimLabels = cell(obj.ndims,1);
       tmpdimValues = cell(obj.ndims,1);
       tmpdimUnits  = cell(obj.ndims,1);
       
       % Get subsets
-      for idxDim = 1:obj.ndims        
+      for idxDim = 1:obj.ndims
         if ~isempty(obj.dimLabels{idxDim})
           tmpdimLabels{idxDim} = obj.dimLabels{idxDim}(dimIdx{idxDim});
-        end        
-
+        end
+        
         currValues = obj.dimValues{idxDim};
         if ~isempty(currValues)
           tmpdimValues{idxDim} = currValues(dimIdx{idxDim});
@@ -996,20 +1020,20 @@ classdef labelledArray < handle & matlab.mixin.Copyable
       out.array_ = tmparray;
       out.dimLabels_ = tmpdimLabels;
       out.dimUnits_  = tmpdimUnits;
-      out.dimValues_ = tmpdimValues;      
+      out.dimValues_ = tmpdimValues;
       
       if nargout==2
         % Pass out the index, if requested.
         varargout{1} = dimIdx;
       end;
-                 
+      
     end
     
     %%
     function validCell = validateCellInput(obj,val)
       %% Check cell input arrays, and convert style if necessary.
       %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-
+      
       assert(iscell(val)&&((size(val,2)==2)||...
         (numel(val)>=obj.ndims)),'Incorrect input shape');
       
@@ -1066,8 +1090,8 @@ classdef labelledArray < handle & matlab.mixin.Copyable
         isChanged=true;
       else
         newVal = val;
-        isChanged = false;      
-      end;        
+        isChanged = false;
+      end;
     end
     
     %%
@@ -1098,7 +1122,7 @@ classdef labelledArray < handle & matlab.mixin.Copyable
           end
         end
       end
-                
+      
       % Clear the labels and names if the array is getting cleared, or if
       % they haven't been set yet.
       resetLabels = isempty(val)||isempty(obj.array_)||isempty(obj.dimLabels_);
@@ -1109,10 +1133,10 @@ classdef labelledArray < handle & matlab.mixin.Copyable
       obj.array_ = val;
       
       if resetLabels, obj.dimLabels = []; end;
-      if resetNames,  obj.dimNames = []; end;             
+      if resetNames,  obj.dimNames = []; end;
       if resetValues, obj.dimValues = []; end;
       if resetUnits,  obj.dimUnits  = []; end;
-    end    
+    end
     
   end
   
