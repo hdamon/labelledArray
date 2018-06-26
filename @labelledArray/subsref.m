@@ -3,7 +3,7 @@ function varargout = subsref(obj,s)
 %
 
 switch s(1).type
-  case '.'    
+  case '.'       
     if length(s)>1
       if ismember(s(1).subs,methods(obj))
         % If we're calling a method, pass the arguments
@@ -32,8 +32,8 @@ switch s(1).type
       if numel(s)==1
         % Internal object indices can only be accessed individually        
         %disp(['Accessing single object: Single Reference']);
-        dimIdx = obj.getNumericIndex(s.subs{:});        
-        varargout = {obj.subcopy(dimIdx{:})};
+        %dimIdx = obj.getNumericIndex(s.subs{:});        
+        varargout = {obj.subcopy(s.subs{:})};
       else
         % Get the right object, then reference into it.
         %disp(['Accessing single object: Multiple Reference']);
