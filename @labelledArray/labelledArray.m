@@ -530,8 +530,8 @@ classdef labelledArray < handle & matlab.mixin.Copyable
       
       for idxDim = 1:obj.ndims
         % Dimension names must all be the same
-        if ~(isequal(obj.dimNames{idxDim},b.dimNames{idxDim})), return; end;
-        if ~(isequal(obj.dimUnits{idxDim},b.dimUnits{idxDim})), return; end;
+        %if ~(isequal(obj.dimNames{idxDim},b.dimNames{idxDim})), return; end;
+        %if ~(isequal(obj.dimUnits{idxDim},b.dimUnits{idxDim})), return; end;
         
         % Check Dimension Labels
         if checkBSX
@@ -578,7 +578,7 @@ classdef labelledArray < handle & matlab.mixin.Copyable
       
       assert(isConsistent(obj,b),'Inconsistent decomposition sizes');
       
-      sizeEqual = crlEEG.util.validation.compareSizes(size(obj),size(b));
+      sizeEqual = obj.compareSizes(size(b));
       
       nDimsOut = numel(sizeEqual);
       
@@ -636,6 +636,21 @@ classdef labelledArray < handle & matlab.mixin.Copyable
   %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
   %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
   methods (Access=protected)
+    
+function isEqual = compareSizes(obj,sizeB)
+% Compare the size of two objects, with possible different dimensionalities
+%
+%
+sizeA = obj.size;
+maxlen = max([numel(sizeA) numel(sizeB)]);
+sA = zeros(1,maxlen);
+sB = zeros(1,maxlen);
+sA(1:numel(sizeA)) = sizeA;
+sB(1:numel(sizeB)) = sizeB;
+
+isEqual = sA==sB;
+
+end    
     
     function setProperty(obj,propName,val,castCharCell,isSingleOk,typeCheckFunc,typeCheckErr)
       % Protected utility function for internal setting of properties
@@ -1108,13 +1123,15 @@ classdef labelledArray < handle & matlab.mixin.Copyable
       
       if ~isempty(obj.array_)
         % Check Overall Dimensionality
-        nDims = builtin('ndims',val);
-        if (nDims~=obj.ndims)&&(obj.ndims~=0)
+        sIn = size(val);
+        sCurr = obj.size;
+        
+        if (any(sCurr(1:numel(sIn))~=sIn))||(any(sCurr((numel(sIn)+1):end)~=1))
           error('array dimensionality does not match existing size');
         end
         
-        % Check Individual Dimension Sizes
-        for idxDim = 1:nDims
+        % Check Individual Dimension Sizes        
+        for idxDim = 1:obj.ndims
           dimSize = size(val,idxDim);
           
           if ( dimSize ~= size(obj.array_,idxDim) )
