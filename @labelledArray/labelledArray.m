@@ -277,17 +277,18 @@ classdef labelledArray < handle & matlab.mixin.Copyable
       
       dim = varargin{idxDim};
       out = obj.copy;
-      out.array_ = funcHandle(obj.array,varargin{:});
-      out.dimLabels{dim} = func2str(funcHandle);
-      out.dimUnits{dim} = [func2str(funcHandle) '(' out.dimUnits{dim} ')'];
-      if ~isempty(obj.dimLabels{dim})
-        out.dimLabels{dim} = [ out.dimLabels{dim} '(' strjoin(obj.dimLabels{dim}) ')'];
-      end;
-      if ~isempty(obj.dimValues{dim})
-        % Return the average of the values.
-        out.dimValues{dim} = mean(out.dimValues{dim});
-      end
+      out.array_ = funcHandle(obj.array,varargin{:});      
       
+      if ~isempty(obj.dimValues{dim})
+        newVal = mean(obj.dimValues{dim});
+      else
+        newVal = [];
+      end;
+      
+      newDim = arrayDim('dimLabels',func2str(funcHandle),...
+                        'dimUnits', [func2str(funcHandle) '(' out.dimUnits{dim} ')'],...
+                        'dimValues', newVal);
+      out.dimensions(dim) = newDim;
     end
 
     %% Functions that use applyDimFunc
@@ -299,13 +300,13 @@ classdef labelledArray < handle & matlab.mixin.Copyable
     
     function out = mean(obj,dim)
       if ~exist('dim','var'), dim = 1; end;
-      out = applyDimFunc(@var,obj,1,dim);
+      out = applyDimFunc(@mean,obj,1,dim);
     end
     
     function out = std(obj,W,dim)
       if ~exist('dim','var'), dim = 1; end;
       if ~exist('W','var'), W = 0; end;
-      out = applyDimFunc(@var,obj,2,W,dim);
+      out = applyDimFunc(@std,obj,2,W,dim);
     end
     
     function out = var(obj,W,dim)
@@ -346,20 +347,16 @@ classdef labelledArray < handle & matlab.mixin.Copyable
         if isa(b,'labelledArray')
           assert(isMutuallyConsistent(obj(idxObj),b),'Inconsistent decomposition sizes');
           coeff = b.array;
-          [names,labels,units,values] = getConsistentDimensions(obj(idxObj),b);
+          dimsOut = getConsistentDimensions(obj(idxObj),b);
         else
           coeff = b;
-          names = obj.dimNames;
-          labels = obj.dimLabels;
+          % New dimensions need to be handled better here
+          dimsOut = obj.dimensions;          
         end;
         
         objOut(idxObj) = copy(obj(idxObj));
         objOut(idxObj).array_ = bsxfun(funcHandle,obj.array,coeff);
-        objOut(idxObj).dimNames = names;
-        objOut(idxObj).dimLabels = labels;
-        objOut(idxObj).dimUnits = units;
-        objOut(idxObj).dimValues = values;
-        
+        objOut(idxObj).dimensions_ = dimsOut;        
       end;
       
       %% Reshape if its an array of objects
@@ -484,7 +481,7 @@ classdef labelledArray < handle & matlab.mixin.Copyable
   %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
   methods (Hidden)
     
-    function isValid = isMutuallyConsistent(obj,b,checkBSX)
+    function isValid = isMutuallyConsistent(obj,b,varargin)
       % Check consistency between timeFrequencyDecomposition objects
       %
       % Used to check if math operations can be applied between two
@@ -497,8 +494,8 @@ classdef labelledArray < handle & matlab.mixin.Copyable
       %  checkBSX : Flag to allow dimension mismatch if it satisfies
       %               conditions for applying bsxfun.
       %
-      
-      isValid = isMutuallyConsistent(obj.dimensions_,b.dimensions_,'bsxValid',checkBSX);      
+            
+      isValid = isMutuallyConsistent(obj.dimensions_,b.dimensions_,varargin{:});      
     end
     
     function [dimsOut] = getConsistentDimensions(obj,b)
@@ -658,17 +655,23 @@ classdef labelledArray < handle & matlab.mixin.Copyable
       
       if ~isempty(obj.array_)&&~isempty(val)
         % Check Overall Dimensionality
-        nDims = builtin('ndims',val);
-        if (nDims~=obj.ndims)&&(obj.ndims~=0)
-          error('array dimensionality does not match existing size');
-        end
         
+        dimsIn = builtin('ndims',val);
+        maxDims = max([dimsIn, obj.ndims]);
+                
         % Check Individual Dimension Sizes
-        for idxDim = 1:nDims
-          dimSize = size(val,idxDim);
+        for idxDim = 1:maxDims
           
-          if ( dimSize ~= size(obj.array_,idxDim) )
-            error(['Input array does not match current size on dimension: ' num2str(idxDim)]);
+          if idxDim<=dimsIn
+          
+           dimSize = size(val,idxDim);
+          
+           if ( dimSize ~= size(obj.array_,idxDim) )
+             error(['Input array does not match current size on dimension: ' num2str(idxDim)]);
+           end
+          else
+            assert(obj.size(idxDim)==1,...
+               ['Input array does not match current size on dimension: ' num2str(idxDim)]);
           end
         end
       end
@@ -677,13 +680,19 @@ classdef labelledArray < handle & matlab.mixin.Copyable
       
       obj.array_ = val;
       
-      if resetDimensions
-        for i = 1:ndims(obj.array_)
-          cleanDims(i) = arrayDim('dimSize',size(obj,i));
-        end      
-        obj.dimensions_ = cleanDims;
+      %% Adjust dimension sizes
+      for i = 1:ndims(val)
+        if ~isempty(val)
+         if i<numel(obj.dimensions_)
+           obj.dimensions(i).dimSize = size(val,i);
+         else
+           % Add a new dimension
+           obj.dimensions(i) = arrayDim('dimSize',size(val,i));
+         end
+        else
+        end
       end;
-            
+              
     end
     
   end

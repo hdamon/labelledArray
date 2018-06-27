@@ -96,8 +96,16 @@ classdef arrayDim
       % Otherwise empty dimensions have a size of 1.
       %
       if isempty(obj.dimSize_)
-        nLabels = numel(obj.dimLabels);
-        nUnits  = numel(obj.dimUnits);
+        if ischar(obj.dimLabels)
+          nLabels = 1;
+        else
+          nLabels = numel(obj.dimLabels);
+        end;
+        if ischar(obj.dimUnits)
+          nUnits = 1;
+        else
+         nUnits  = numel(obj.dimUnits);
+        end;
         nValues = numel(obj.dimValues);
         size = max([nLabels nUnits nValues 1]);
       else
@@ -168,8 +176,9 @@ classdef arrayDim
     end
     
     function isEmpty = isempty(obj)
-      isEmpty = true;
+      isEmpty = false;
       if numel(obj)==1
+        isEmpty = true;
         % Empty only if all components are empty
         isEmpty = isEmpty&&isempty(obj.dimName);
         isEmpty = isEmpty&&isempty(obj.dimLabels);
@@ -178,6 +187,18 @@ classdef arrayDim
       end
     end
     
+    function isEmpty = isMostlyEmpty(obj)
+      % Allows dimension name to have been set.
+      isEmpty = false;
+      if numel(obj)==1
+        isEmpty = true;
+        % Empty only if all components are empty        
+        isEmpty = isEmpty&&isempty(obj.dimLabels);
+        isEmpty = isEmpty&&isempty(obj.dimUnits);
+        isEmpty = isEmpty&&isempty(obj.dimValues);
+      end
+    end    
+    
     function obj = cat(dim,obj,a,varargin)
       
       assert(isMutuallyConsistent(obj,a,...
@@ -185,6 +206,13 @@ classdef arrayDim
                                     'sizeMismatchValid',true,...
                                     'sizeMismatchDim',dim,...
                                     'nExtraDimsValid',0));
+           
+      % Copy info for dimensions that haven't been fully defined yet
+      for i = 1:numel(obj)
+        if isMostlyEmpty(obj(i))
+          obj(i) = a(i);
+        end
+      end
                                   
       if ~isempty(obj(dim).dimSize_)&&~isempty(a(dim).dimSize_)
         obj(dim).dimSize_ = obj(dim).dimSize_ + a(dim).dimSize_;
@@ -192,10 +220,19 @@ classdef arrayDim
         % Clear if both aren't explicitly defined.
         obj(dim).dimSize_ = [];
       end;
-      obj(dim).dimLabels_ = cat(2,obj(dim).dimLabels,a(dim).dimLabels);
-      obj(dim).dimUnits_  = cat(2,obj(dim).dimUnits,a(dim).dimUnits);
+            
+      obj(dim).dimLabels_ = cat(2,checkType(obj(dim).dimLabels),checkType(a(dim).dimLabels));
+      obj(dim).dimUnits_  = cat(2,checkType(obj(dim).dimUnits),checkType(a(dim).dimUnits));
       obj(dim).dimValues_ = cat(2,obj(dim).dimValues,a(dim).dimValues);
       assert(obj(dim).isInternallyConsistent);
+      
+      function out = checkType(in)
+        if isempty(in)
+          out = [];
+        else
+          out = cellstr(in);
+        end
+      end
       
     end
     
@@ -424,9 +461,18 @@ classdef arrayDim
           isValid = isEmptyOrEqual(obj.dimName,a.dimName);
           return;
         end
-                
-        isValid = false;
+                                
+        if isMostlyEmpty(obj)||isMostlyEmpty(a)
+          % If one or the other is mostly empty (only a name assigned, if
+          % anything), then they are compatible if they share the same
+          % name.
+          if ~isEmptyOrEqual(obj.dimName,a.dimName), return; end;
+          isValid = true;
+          return;
+        end;
+        
         % Size Must be Equal
+        isValid = false;
         if ~isequal(obj.dimSize,a.dimSize), return; end;                
         % Strict Testing
         if p.Results.testStrict
@@ -520,8 +566,16 @@ classdef arrayDim
       assert(isempty(obj.dimName)||ischar(obj.dimName),...
               'Dimension name must be a character string');
             
-      nLabels = numel(obj.dimLabels);
-      nUnits  = numel(obj.dimUnits);
+      if ischar(obj.dimLabels)
+        nLabels = 1;
+      else
+        nLabels = numel(obj.dimLabels);
+      end
+      if ischar(obj.dimUnits)
+        nUnits = 1;
+      else
+        nUnits  = numel(obj.dimUnits);
+      end
       nValues = numel(obj.dimValues);
          
       assert((nLabels==0)||(nLabels==obj.dimSize),...
