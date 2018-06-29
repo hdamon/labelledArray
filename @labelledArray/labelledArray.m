@@ -277,7 +277,7 @@ classdef labelledArray < handle & matlab.mixin.Copyable
       
       dim = varargin{idxDim};
       out = obj.copy;
-      out.array_ = funcHandle(obj.array,varargin{:});      
+      out.array_ = funcHandle(obj.array_,varargin{:});      
       
       if ~isempty(obj.dimValues{dim})
         newVal = mean(obj.dimValues{dim});
@@ -285,8 +285,16 @@ classdef labelledArray < handle & matlab.mixin.Copyable
         newVal = [];
       end;
       
-      newDim = arrayDim('dimLabels',func2str(funcHandle),...
-                        'dimUnits', [func2str(funcHandle) '(' out.dimUnits{dim} ')'],...
+      newName = obj.dimNames{dim};
+      if isempty(obj.dimUnits{dim})
+        newUnits = [func2str(funcHandle) '(' obj.dimNames{dim} ')'];
+      elseif ischar(obj.dimUnits{dim})
+        newUnits = [func2str(funcHandle) '(' out.dimUnits{dim} ')'];
+      else
+        newUnits = [func2str(funcHandle) '(' out.dimUnits{dim}{1} ')'];
+      end;
+      newDim = arrayDim('dimName',newName,...
+                        'dimUnits', newUnits,...
                         'dimValues', newVal);
       out.dimensions(dim) = newDim;
     end
@@ -295,7 +303,7 @@ classdef labelledArray < handle & matlab.mixin.Copyable
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     function out = sum(obj,dim)
       if ~exist('dim','var'),dim = 1; end;
-      out = applyDimFunc(@var,obj,1,dim);
+      out = applyDimFunc(@sum,obj,1,dim);
     end;
     
     function out = mean(obj,dim)
@@ -345,7 +353,9 @@ classdef labelledArray < handle & matlab.mixin.Copyable
       
       for idxObj = 1:numel(obj)
         if isa(b,'labelledArray')
-          assert(isMutuallyConsistent(obj(idxObj),b),'Inconsistent decomposition sizes');
+          assert(isMutuallyConsistent(obj(idxObj),b,...
+                                      'nameMismatchValid',true),...
+                 'Inconsistent decomposition sizes');
           coeff = b.array;
           dimsOut = getConsistentDimensions(obj(idxObj),b);
         else
@@ -392,7 +402,7 @@ classdef labelledArray < handle & matlab.mixin.Copyable
       out = obj.dimensions_;
     end
     
-    function obj = set.dimensions(obj,val)
+    function set.dimensions(obj,val)
       obj.dimensions_ = val;
       assert(isInternallyConsistent(obj.dimensions_));
     end
@@ -682,7 +692,7 @@ classdef labelledArray < handle & matlab.mixin.Copyable
       %% Adjust dimension sizes
       for i = 1:ndims(val)
         if ~isempty(val)
-         if i<numel(obj.dimensions_)
+         if i<=numel(obj.dimensions_)
            obj.dimensions(i).dimSize = size(val,i);
          else
            % Add a new dimension

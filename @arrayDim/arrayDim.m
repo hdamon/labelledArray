@@ -129,6 +129,13 @@ classdef arrayDim
       assert(obj.isInternallyConsistent);
     end;
     
+    function obj = set.dimLabels_(obj,val)
+      if (size(val,1)>1)
+        val = val';
+      end
+      obj.dimLabels_ = val;
+    end;
+
     %% Get/Set obj.dimUnits
     %%%%%%%%%%%%%%%%%%%%%%%
     function units = get.dimUnits(obj)
@@ -139,6 +146,13 @@ classdef arrayDim
       obj.dimUnits_ = val;
       assert(obj.isInternallyConsistent);
     end    
+
+    function obj = set.dimUnits_(obj,val)
+      if (size(val,1)>1)
+        val = val';
+      end;
+      obj.dimUnits_ = val;
+    end;
     
     %% Get/Set obj.dimValues
     %%%%%%%%%%%%%%%%%%%%%%%%
@@ -147,9 +161,16 @@ classdef arrayDim
     end
     
     function obj = set.dimValues(obj,val)
-      obj.dimValues_ = val;
+      obj.dimValues_ = val(:)';
       assert(obj.isInternallyConsistent);
     end;
+
+    function obj = set.dimValues_(obj,val)
+      if size(val,1)>1
+          val = val';
+      end;
+      obj.dimValues_ = val;
+    end
                   
     %% Overloaded Functions
     %%%%%%%%%%%%%%%%%%%%%%%        
@@ -204,13 +225,18 @@ classdef arrayDim
       assert(isMutuallyConsistent(obj,a,...
                                     'bsxValid',false,...
                                     'sizeMismatchValid',true,...
-                                    'sizeMismatchDim',dim,...
+                                    'sizeMismatchDim',dim,...                                    
                                     'nExtraDimsValid',0));
            
       % Copy info for dimensions that haven't been fully defined yet
       for i = 1:numel(obj)
         if isMostlyEmpty(obj(i))
-          obj(i) = a(i);
+          if (i~=dim)
+            obj(i) = a(i);
+          else
+            % Copy the name for the concatenated dimension
+            obj(i).dimName = a(i).dimName;
+          end
         end
       end
                                   
@@ -237,6 +263,26 @@ classdef arrayDim
     end
     
     function [obj,varargout] = subselectDimensions(obj,varargin)      
+      % Select a subset of samples along one or more dimensions
+      %
+      % Inputs:
+      % ------
+      %      obj : A single arrayDim object, or a 1D array of them
+      % varargin : Indexing arguments
+      %             The elements of varargin in are treated as 
+      %             indexes into each of the components of the 
+      %             input object. 
+      %             If numel(varargin)<numel(obj),
+      %               ':' indexing is used for all remaining dimensions.
+      %             If numel(varargin)>numel(obj), extra indices are 
+      %               ignored
+      %
+      % Outputs:
+      % --------
+      %   obj :  arrayDim object with subselection performed
+      %
+      % 
+      % 
       idx = obj.getIndexIntoDimensions(varargin{:});
       
       for idxDim = 1:numel(obj)
@@ -264,77 +310,74 @@ classdef arrayDim
       % ------
       %   idxOut : F
       %
-      
+     
+      % Recurse if more than one object input 
       if numel(obj)>1
         idxOut = cell(1,numel(obj));
         for idxDim = 1:numel(obj)
           if idxDim<=numel(varargin)
             idxOut{idxDim} = obj(idxDim).getIndexIntoDimensions(varargin{idxDim});
           else
+            % Use ':' indexing if not all dimensions specified.
             idxOut{idxDim} = obj(idxDim).getIndexIntoDimensions(':');
           end;
         end    
         return;
       end
-                                        
-      if isempty(obj.dimLabels)
-        cellIn = [];
-        isStringValid = false;
-      else
-        cellIn = obj.dimLabels;
-        isStringValid = true;
-      end;
+     
+      % Should have numel(obj)==1 and numel(varargin)==1 below this line.
+      assert(numel(obj)==1,'This shouldn''t happen');
+      assert(numel(varargin)==1,'This shouldn''t happen');
+     
+      refIn = varargin{1};
+      nOut = numel(refIn);
       
-%       if isempty(obj.dimValues)
-%         valIn= [];
-%         isValueValid = false;
-%       else
-%         valIn = obj.dimValues;
-%         isValueValid = false;
-%       end;
-      
-       % Find the correct numeric indices
-      if isequal(varargin{1},':')
+      % String referencing is valid if dimension labels are assigned
+      isStringValid = true;
+      if isempty(obj.dimLabels),  isStringValid = false;  end;
+   
+      % Value referencing is valid if values are assigned 
+      isValueValid = false; % Turned off for now
+      if isempty(obj.dimValues), isValueValid = false; end;
+        
+      %% Select According to Reference Type and Find Correct Numeric Indices
+      if isequal(refIn,':')
         %% Requested Everything
-        idxOut = varargin{1};
+        idxOut = refIn;
         return;
         
-      elseif islogical(varargin{1})
+      elseif islogical(refIn)
         %% Logical Indexing
-        assert(numel(varargin{1})==size(obj,dim),...
+        assert(numel(refIn)==obj.dimSize,...
           'Logical indexing must match the size of the dimension');
-        idxOut = find(varargin{1});
+        idxOut = find(refIn);
         return;
         
-      elseif isnumeric(varargin{1})
-        %% Numeric Reference
-        if any(varargin{1}<1)||any(varargin{1}>obj.dimSize)
+      elseif isnumeric(refIn)
+        %% Numeric Indexing
+        if any(refIn<1)||any(refIn>obj.dimSize)
           error('Requested index outside of available range');
         end;
-        idxOut = varargin{1};
-        %idxOut(idxOut<1) = nan;
-        %idxOut(idxOut>numel(cellIn)) = nan;
+        idxOut = refIn;
         return;
         
-      elseif ischar(varargin{1})||iscellstr(varargin{1})
-        %% String Reference
-        if ~isStringValid
-          error('String indexing unavailable for this dimension');
-        end;
+      elseif ischar(refIn)||iscellstr(refIn)
+        %% String IndexingA
+        assert(isStringValid,'String indexing unavailable for this dimension');
         
-        if ischar(varargin{1}), varargin{1} = {varargin{1}}; end;
-        cellIn = strtrim(cellIn);
-        varargin{1} = strtrim(varargin{1});
-        idxOut = zeros(1,numel(varargin{1}));
+        if ischar(refIn), refIn = {refIn}; end;
+        cellIn = strtrim(obj.dimLabels);
+        refIn = strtrim(refIn);
+        idxOut = zeros(1,numel(refIn));
         for idx = 1:numel(idxOut)
-          tmp = find(strcmp(varargin{1}{idx},cellIn));
+          tmp = find(strcmp(refIn{idx},cellIn));
           if isempty(tmp)
             error('Requested string does not appear in cell array');
           end;
           assert(numel(tmp)==1,'Multiple string matches in cellIn');
           idxOut(idx) = tmp;
         end
-      elseif iscell(varargin{1})
+      elseif iscell(refIn)
         % Value Indexing
         error('Value indexing not yet implemented');
       else
@@ -394,10 +437,25 @@ classdef arrayDim
     
     function [dimOut] = getConsistentDimensions(obj,a)
       % Get a new set of mutually consistent dimensions
+      %
+      % [dimOut] = getConsistentDimensions(obj,a)
+      %
+      % Inputs
+      % ------
+      %  obj :
+      %    a : arrayDim object
+      %
+      % Outputs
+      % -------
+      %  dimOut : New arrayDim object
+      %
+
       nDimsOut = max(numel(obj),numel(a));
       
       if nDimsOut==1
-        assert(isMutuallyConsistent(obj,a),'Inconsistent decomposition sizes');
+        assert(isMutuallyConsistent(obj,a,...
+                            'sizeMismatchValid',true,...
+                            'nameMismatchValid',true),'Inconsistent decomposition sizes');
         
         if (obj.dimSize>1)||(a.dimSize==1)
           dimOut = obj;
@@ -439,6 +497,7 @@ classdef arrayDim
       p.addParameter('bsxValid',true,@islogical);
       p.addParameter('testStrict',true,@islogical);      
       p.addParameter('sizeMismatchValid',false,@islogical);
+      p.addParameter('nameMismatchValid',false,@islogical);
       p.addParameter('nExtraDimsValid',[],@(x) isnumeric(x)&&isscalar(x));
       p.addParameter('sizeMismatchDim',[],@(x) isnumeric(x)&&isscalar(x));
       p.parse(varargin{:});
@@ -447,7 +506,20 @@ classdef arrayDim
       
       if (numel(obj)==1)&&(numel(a)==1)
         % Directly compare two dimensions
-                
+
+        if isMostlyEmpty(obj)||isMostlyEmpty(a)
+          % If one or the other is mostly empty (only a name assigned, if
+          % anything), then they are compatible.           
+          isValid = true;
+          return;
+        end;                
+
+        if ~p.Results.nameMismatchValid
+          % By default, check that the names match
+          isValid = isEmptyOrEqual(obj.dimName,a.dimName);
+          if ~isValid, return; end;
+        end;
+
         if p.Results.bsxValid
           % bsxfun can be applied if one of the dimension sizes is 1, or if
           % the dimensions otherwise match.
@@ -458,25 +530,16 @@ classdef arrayDim
         if p.Results.sizeMismatchValid&&p.Results.testStrict
           % If mismatched sizes are valid, just want to check the
           % dimensions names under strict testing
-          isValid = isEmptyOrEqual(obj.dimName,a.dimName);
-          return;
-        end
-                                
-        if isMostlyEmpty(obj)||isMostlyEmpty(a)
-          % If one or the other is mostly empty (only a name assigned, if
-          % anything), then they are compatible if they share the same
-          % name.
-          if ~isEmptyOrEqual(obj.dimName,a.dimName), return; end;
+          %isValid = isEmptyOrEqual(obj.dimName,a.dimName);
           isValid = true;
           return;
-        end;
-        
+        end
+                                       
         % Size Must be Equal
         isValid = false;
         if ~isequal(obj.dimSize,a.dimSize), return; end;                
         % Strict Testing
-        if p.Results.testStrict
-          if ~isEmptyOrEqual(obj.dimName,  a.dimName),   return; end;
+        if p.Results.testStrict          
           if ~isEmptyOrEqual(obj.dimLabels,a.dimLabels), return; end;
           if ~isEmptyOrEqual(obj.dimUnits, a.dimUnits),  return; end;
           if ~isEmptyOrEqual(obj.dimValues,a.dimValues), return; end;
@@ -497,6 +560,8 @@ classdef arrayDim
           isValid = isValid && ...
                     isMutuallyConsistent(obj(idxDim),a(idxDim),...
                            'bsxValid',p.Results.bsxValid,...
+                           'testStrict',p.Results.testStrict,...
+                           'nameMismatchValid',p.Results.nameMismatchValid,...
                            'sizeMismatchValid',...
                                ismember(idxDim,p.Results.sizeMismatchDim));          
         end
@@ -551,7 +616,7 @@ classdef arrayDim
   %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%55
   
   methods 
-    
+
     function isOk = isInternallyConsistent(obj)
       % Check the internal consistency of the object
       
@@ -569,15 +634,16 @@ classdef arrayDim
       if ischar(obj.dimLabels)
         nLabels = 1;
       else
-        nLabels = numel(obj.dimLabels);
+        nLabels = numel(obj.dimLabels);        
       end
       if ischar(obj.dimUnits)
         nUnits = 1;
       else
-        nUnits  = numel(obj.dimUnits);
+        nUnits  = numel(obj.dimUnits);       
       end
-      nValues = numel(obj.dimValues);
-         
+
+      nValues = numel(obj.dimValues);    
+
       assert((nLabels==0)||(nLabels==obj.dimSize),...
                 'Inconsistent number of labels');
       assert((nUnits==0)||(ischar(obj.dimUnits))||(nUnits==obj.dimSize),...

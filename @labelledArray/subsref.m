@@ -5,7 +5,7 @@ function varargout = subsref(obj,s)
 switch s(1).type
   case '.'       
     if length(s)>1
-      if ismember(s(1).subs,methods(obj))
+      if ischar(s(1).subs)&&ismember(s(1).subs,methods(obj))
         % If we're calling a method, pass the arguments
         varargout = {builtin('subsref',obj,s)};
       else
@@ -29,6 +29,12 @@ switch s(1).type
   case '()'
     if numel(obj) == 1
       %% Implement obj(indices)
+      
+      if (numel(s(1).subs)==1)&&(s(1).subs{1}==1)
+        varargout = {builtin('subsref',obj,s)};
+        return;
+      end
+      
       if numel(s)==1
         % Internal object indices can only be accessed individually        
         %disp(['Accessing single object: Single Reference']);
