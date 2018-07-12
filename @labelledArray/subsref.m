@@ -30,7 +30,7 @@ switch s(1).type
     if numel(obj) == 1
       %% Implement obj(indices)
       
-      if (numel(s(1).subs)==1)&&(s(1).subs{1}==1)
+      if (numel(s(1).subs)==1)&&(numel(s(1).subs{1})==1)&&(s(1).subs{1}==1)
         varargout = {builtin('subsref',obj,s)};
         return;
       end
@@ -48,8 +48,14 @@ switch s(1).type
       end;
     else
         % Just use the builtin for arrays of objects
-        %disp(['Using builting to access array']);
-        varargout = {builtin('subsref',obj,s)};            
+        
+        if numel(s)==1
+          varargout = {builtin('subsref',obj,s)};
+        else
+        
+        tmp = builtin('subsref',obj,s(1));
+        varargout = {subsref(tmp,s(2:end))};                
+        end;
     end
     
   case '{}'

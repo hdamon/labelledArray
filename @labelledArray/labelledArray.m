@@ -99,6 +99,7 @@ classdef labelledArray < handle & matlab.mixin.Copyable
   %
   properties (Hidden,Dependent)
     array
+    arrayRange
     dimensions
     dimNames
     dimLabels
@@ -109,6 +110,7 @@ classdef labelledArray < handle & matlab.mixin.Copyable
   properties (Access=protected) % Should possibly be private?
     array_      % The array array
     dimensions_ % Dimension information
+    arrayRange_ %
   end
   
   methods
@@ -418,6 +420,22 @@ classdef labelledArray < handle & matlab.mixin.Copyable
       out = obj.array_;
     end;
     
+%     function set.array_(obj,val)
+%       obj.array_ = val;
+%       %% Adjust dimension sizes
+%       for i = 1:ndims(val)
+%         if ~isempty(val)
+%          if i<=numel(obj.dimensions_)
+%            obj.dimensions(i).dimSize = size(val,i);
+%          else
+%            % Add a new dimension
+%            obj.dimensions(i) = arrayDim('dimSize',size(val,i));
+%          end
+%         else
+%         end
+%       end;      
+%     end
+    
     %% dimNames Get/Set Methods
     %%%%%%%%%%%%%%%%%%%%%%%%%%%
     function set.dimNames(obj,val)
@@ -483,6 +501,62 @@ classdef labelledArray < handle & matlab.mixin.Copyable
     function out = get.dimValues(obj)
       out = {obj.dimensions_.dimValues};      
     end;
+    
+    %%  arrayRange 
+    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+    %% Get/Set Methods for obj.arrayRange
+    function rangeOut = get.arrayRange(obj)
+      if isempty(obj.arrayRange_)
+        % Update the array range if it hasn't been assigned yet.
+        obj.updateArrayRange(true);
+      end;
+      rangeOut = obj.arrayRange_;           
+    end;                  
+    function set.arrayRange(obj,~)
+      error('obj.arrayRange is derived from obj.array');
+    end;
+        
+    function updateArrayRange(obj,force,restrictionList)
+      % Update the stored array range
+      %
+      % Inputs
+      % ------
+      %              obj : labelledArray object
+      %            force : Force computation of the range
+      %  restrictionList : Restricted list of channels to consider
+      %
+      % Assigns a value of [min(obj.array_(:)) max(obj.array_(:))] to
+      % obj.arrayRange_
+      %
+      % This should only get called when the range is actually requested.
+      % Calling when otherwise unnecessary can increased computation time
+      % when dealing with large arrays through the min() and max() calls.
+      %
+      % restrictionList is included here for support in subclasses.
+      %
+      
+      if ~exist('force','var'),force = false; end;
+      if isempty(obj.arrayRange_)&&~force  
+        % Only update the range if we're actually requesting it, or it's
+        % been set before.
+        return;
+      end;
+      
+      allIdx = obj.getNumericIndex(restrictionList{:});
+      
+      arrayMin = min(obj.array(allIdx{:}));
+      while ~isscalar(arrayMin)
+        arrayMin = min(arrayMin);
+      end;
+      
+      arrayMax = max(obj.array(allIdx{:}));
+      while ~isscalar(arrayMax)
+        arrayMax = max(arrayMax);
+      end;
+      
+      obj.arrayRange_ = [arrayMin arrayMax];      
+    end    
     
   end
   
@@ -554,7 +628,7 @@ classdef labelledArray < handle & matlab.mixin.Copyable
       %
       %
       
-      idxOut = obj.dimensions_findDimensions(dimRefs);      
+      idxOut = obj.dimensions_.findDimensions(dimRefs);      
     end
     
     
@@ -688,6 +762,7 @@ classdef labelledArray < handle & matlab.mixin.Copyable
       resetDimensions = isempty(val)||isempty(obj.array_)||isempty(obj.dimensions_);
       
       obj.array_ = val;
+      obj.arrayRange_ = []; % Clear Array Range
       
       %% Adjust dimension sizes
       for i = 1:ndims(val)

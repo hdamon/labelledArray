@@ -10,6 +10,7 @@ classdef arrayDim
     dimLabels
     dimUnits
     dimValues
+    dimRange
   end
   
   properties (Access=private)
@@ -61,6 +62,8 @@ classdef arrayDim
         end;              
       end;
     end
+    
+
     
     function name = get.dimName(obj)
       name = obj.dimName_;
@@ -171,10 +174,33 @@ classdef arrayDim
       end;
       obj.dimValues_ = val;
     end
+    
+    function out = get.dimRange(obj)
+      if ~isempty(obj.dimValues)
+        out = [obj.dimValues_(1) obj.dimVlaues_(end)];
+      else
+        out = [];
+      end;
+    end    
                   
     %% Overloaded Functions
     %%%%%%%%%%%%%%%%%%%%%%%        
     function isEqual = isequal(obj,a)
+      
+      if numel(obj)>1
+        if numel(obj)==numel(a)
+          isEqual = true;
+          for i = 1:numel(obj)
+            isEqual = isEqual&&isequal(obj(i),a(i));
+          end;
+        else
+          isEqual = false;
+          warning('Overall dimensionality mismatch');
+          return;
+        end;        
+        return;
+      end
+      
       isEqual = true;
       if ~(isequal(obj.dimName,a.dimName))
         isEqual = false;
@@ -247,8 +273,59 @@ classdef arrayDim
         obj(dim).dimSize_ = [];
       end;
             
-      obj(dim).dimLabels_ = cat(2,checkType(obj(dim).dimLabels),checkType(a(dim).dimLabels));
-      obj(dim).dimUnits_  = cat(2,checkType(obj(dim).dimUnits),checkType(a(dim).dimUnits));
+      %% Get concatenated Labels
+      labelsA = checkType(obj(dim).dimLabels);
+      labelsB = checkType(a(dim).dimLabels);
+      
+      if isempty(labelsA)&&~isempty(labelsB)
+        labelsA(1:obj(dim).dimSize) = {''};
+      end;
+      if isempty(labelsB)&&~isempty(labelsA)
+        labelsB(1:a(dim).dimSize) = {''};
+      end;
+      newLabels = cat(2,labelsA,labelsB);
+      
+      %% Get concatenated units      
+      unitsA = checkType(obj(dim).dimUnits);
+      unitsB = checkType(a(dim).dimUnits);
+      
+     
+      % Both have a single dimensional unit
+      if ischar(unitsA)&&ischar(unitsB)
+        if isequal(unitsA,unitsB)
+          newUnits = unitsA;
+        else
+          error('AAARGH');
+        end                    
+      % Expand Dimensional Units
+      elseif ischar(unitsA)&&iscellstr(unitsB)
+        tmp(1:obj(dim).dimSize) = {unitsA};
+        unitsA = tmp;
+        newUnits = cat(2,unitsA,unitsB);
+      
+      
+      elseif ischar(unitsB)&&iscellstr(unitsA)
+        tmp(1:a(dim).dimSize) = {unitsB};
+        unitsB = tmp;
+        newUnits = cat(2,unitsA,unitsB);
+     
+      
+      elseif isempty(unitsA)&&~isempty(unitsB)
+        tmp(1:obj(dim).dimSize) = {''};
+        unitsA = tmp;
+        newUnits = cat(2,unitsA,unitsB);
+            
+      elseif isempty(unitsB)&&~isempty(unitsA)
+        tmp(1:a(dim).dimSize) = {''};
+        unitsB = tmp;
+        newUnits = cat(2,unitsA,unitsB);
+        
+      else
+        newUnits = cat(2,unitsA,unitsB);
+      end
+      
+      obj(dim).dimLabels_ = cat(2,newLabels);
+      obj(dim).dimUnits_  = cat(2,newUnits);
       obj(dim).dimValues_ = cat(2,obj(dim).dimValues,a(dim).dimValues);
       assert(obj(dim).isInternallyConsistent);
       
@@ -283,8 +360,9 @@ classdef arrayDim
       %
       % 
       % 
-      idx = obj.getIndexIntoDimensions(varargin{:});
-      
+      idx = obj.getIndexIntoDimensions(varargin{:});      
+      if ~iscell(idx), idx = {idx}; end;
+          
       for idxDim = 1:numel(obj)
         obj(idxDim) = obj(idxDim).subcopy(idx{idxDim});
       end;   
@@ -316,10 +394,10 @@ classdef arrayDim
         idxOut = cell(1,numel(obj));
         for idxDim = 1:numel(obj)
           if idxDim<=numel(varargin)
-            idxOut{idxDim} = obj(idxDim).getIndexIntoDimensions(varargin{idxDim});
+            idxOut(idxDim) = {obj(idxDim).getIndexIntoDimensions(varargin{idxDim})};
           else
             % Use ':' indexing if not all dimensions specified.
-            idxOut{idxDim} = obj(idxDim).getIndexIntoDimensions(':');
+            idxOut(idxDim) = {obj(idxDim).getIndexIntoDimensions(':')};
           end;
         end    
         return;
