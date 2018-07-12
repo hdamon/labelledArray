@@ -30,42 +30,51 @@ classdef arrayDim
         end
         
         %% Input Parsing
+				isEmptyOrCell = @(x) isempty(x)||iscell(x);
+				isNumericScalar = @(x) isnumeric(x)&&isscalar(x);
+				isNumericVector = @(x) isnumeric(x)&&isscalar(x);
+				isCharOrCellStr = @(x) isnumeric(x)||iscellstr(x);
+
+
         p = inputParser;
-        p.addParameter('dimName',  [],@(x) isempty(x)||iscell(x)||ischar(x));
-        p.addParameter('dimSize',  [],@(x) isempty(x)||iscell(x)||(isnumeric(x)&&isscalar(x)));
-        p.addParameter('dimLabels',[],@(x) isempty(x)||iscell(x)||ischar(x)||iscellstr(x));
-        p.addParameter('dimUnits', [],@(x) isempty(x)||iscell(x)||ischar(x)||iscellstr(x));
-        p.addParameter('dimValues',[],@(x) isempty(x)||iscell(x)||(isnumeric(x)&&isvector(x)));
+        p.addParameter('dimName',  [],@(x) isEmptyOrCell(x)||ischar(x));
+        p.addParameter('dimSize',  [],@(x) isEmptyOrCell(x)||isNumericVector(x);
+        p.addParameter('dimLabels',[],@(x) isEmptyOrCell(x)||isCharOrCellStr(x);
+        p.addParameter('dimUnits', [],@(x) isEmptyOrCell(x)||isCharOrCellStr(x);
+        p.addParameter('dimValues',[],@(x) isEmptyOrCell(x0||isNumericVector(x);
         p.parse(varargin{:});
                         
         [parsed,nOutput] =  obj.parseInputsIntoCells(p.Results);
         
-        %% Single output object
-        if nOutput==1
+        %% Multiple output object
+        if nOutput>1
+          %% Array of output objects
+          obj(nOutput) = arrayDim;
+          for i = 1:nOutput
+            obj(i) = arrayDim('dimName',parsed.dName{i},...
+                              'dimSize',parsed.dSize{i},...
+                              'dimLabels',parsed.dLabels{i},...
+                              'dimUnits',parsed.dUnits{i},...
+                              'dimValues',parsed.dValues{i});
+          end;              
+					return;
+				end;
+
           obj.dimSize   = parsed.dSize{1};
           obj.dimName   = parsed.dName{1};
           obj.dimLabels = parsed.dLabels{1};
           obj.dimUnits  = parsed.dUnits{1};
           obj.dimValues = parsed.dValues{1};
-          return;
-        end
         
-        %% Array of output objects
-        obj(nOutput) = arrayDim;
-        for i = 1:nOutput
-          obj(i) = arrayDim('dimName',parsed.dName{i},...
-                            'dimSize',parsed.dSize{i},...
-                            'dimLabels',parsed.dLabels{i},...
-                            'dimUnits',parsed.dUnits{i},...
-                            'dimValues',parsed.dValues{i});
-        end;              
       end;
-    end
+    end; % END Constructor
     
     function name = get.dimName(obj)
       name = obj.dimName_;
     end;
-    
+   
+		%% Get/Set obj.dimName
+		%%%%%%%%%%%%%%%%%%%%%% 
     function obj = set.dimName(obj,val)
       assert(isempty(val)||ischar(val),'Dimension name must be a character string');
       obj.dimName_ = val;
@@ -80,6 +89,9 @@ classdef arrayDim
     end
     
     function isFixed = get.fixedSize(obj)
+			% Determine if dimension has a fixed size
+			% 
+			% Not sure if this is entirely necessary.
       if isempty(obj.dimSize_)
         isFixed = false;
       else
@@ -87,7 +99,7 @@ classdef arrayDim
       end;
     end
     
-    function size = get.dimSize(obj)
+    function sizeOut = get.dimSize(obj)
       % Get the size of an individual dimension
       %
       % If not specifically defined, the dimension size is the length of
@@ -107,14 +119,15 @@ classdef arrayDim
          nUnits  = numel(obj.dimUnits);
         end;
         nValues = numel(obj.dimValues);
-        size = max([nLabels nUnits nValues 1]);
+        sizeOut = max([nLabels nUnits nValues 1]);
       else
-        size = obj.dimSize_;
+        sizeOut = obj.dimSize_;
       end;
     end
     
     function obj = set.dimSize(obj,val)
-      assert(isempty(val)||(isnumeric(val)&&isscalar(val)),'Dimension size must be a numeric scalar');
+      assert(isempty(val)||(isnumeric(val)&&isscalar(val)),...
+											'Dimension size must be a numeric scalar');
       obj.dimSize_ = val;
     end
     
@@ -130,9 +143,11 @@ classdef arrayDim
     end;
     
     function obj = set.dimLabels_(obj,val)
+			%% Make sure dimLabels_ is always a row vector
       if (size(val,1)>1)
         val = val';
       end
+			assert(isvector(val),'Dimension labels must be a row vector');
       obj.dimLabels_ = val;
     end;
 
@@ -151,6 +166,8 @@ classdef arrayDim
       if (size(val,1)>1)
         val = val';
       end;
+			assert(isempty(val)||isvector(val),...
+								'Dimension units must be a row vector');
       obj.dimUnits_ = val;
     end;
     
@@ -169,54 +186,82 @@ classdef arrayDim
       if size(val,1)>1
           val = val';
       end;
+			assert(isempty(val)||isvector(val),...
+							'Dimension values must be a row vector');
       obj.dimValues_ = val;
     end
                   
     %% Overloaded Functions
     %%%%%%%%%%%%%%%%%%%%%%%        
     function isEqual = isequal(obj,a)
-      isEqual = true;
-      if ~(isequal(obj.dimName,a.dimName))
-        isEqual = false;
-        warning('Dimension name mismatch');
-      end
-      if ~(isequal(obj.dimLabels,a.dimLabels))
-        isEqual = false;
-        warning('Dimension label mismatch');
-      end
-      
-      if ~(isequal(obj.dimUnits,a.dimUnits))
-        isEqual = false;
-        warning('Dimension unit mismatch');
-      end
-      
-      if ~(isequal(obj.dimValues,a.dimValues))
-        isEqual = false;
-        warning('Dimension value mismatch');
-      end
+
+			if numel(obj)~=numel(a)
+				isEqual = false;
+				warning('Dimensionality mismatch');
+				return;
+			end;
+
+			% Recurse for multiple dimensions
+			isEqual = true;
+			for i = 1:numel(obj)
+  
+  			% Check name equality
+        isDimEqual = true;
+        if ~(isequal(obj.dimName,a.dimName))
+          isDimEqual = false;
+          warning(['Dimension name mismatch in dimension:' num2str(i)]);
+       end
+  
+  			% Check label equality
+        if ~(isequal(obj.dimLabels,a.dimLabels))
+          isDimEqual = false;
+          warning(['Dimension label mismatch in dimension:' num2str(i)]);
+        end
+       
+  			% Check Unit Equality 
+        if ~(isequal(obj.dimUnits,a.dimUnits))
+          isDimEqual = false;
+          warning(['Dimension unit mismatch in dimension:' num2str(i)]);
+        end
+       
+  			% Check Value Equality 
+        if ~(isequal(obj.dimValues,a.dimValues))
+          isDimEqual = false;
+          warning(['Dimension value mismatch in dimension:' num2str(i)]);
+        end;
+
+				isEqual = isEqual&&isDimEqual;
+
+				if ~isEqual
+					break;
+				end;
+			end;
     end
     
     function isEmpty = isempty(obj)
-      isEmpty = false;
-      if numel(obj)==1
-        isEmpty = true;
+
+			isEmpty = true;
+			for i = 1:numel(obj)
+        isDimEmpty = true;
         % Empty only if all components are empty
-        isEmpty = isEmpty&&isempty(obj.dimName);
-        isEmpty = isEmpty&&isempty(obj.dimLabels);
-        isEmpty = isEmpty&&isempty(obj.dimUnits);
-        isEmpty = isEmpty&&isempty(obj.dimValues);
+        isDimEmpty = isDimEmpty&&isempty(obj(i).dimName);
+        isDimEmpty = isEmpty&&isempty(obj(i).dimLabels);
+        isDimEmpty = isEmpty&&isempty(obj(i).dimUnits);
+        isDimEmpty = isEmpty&&isempty(obj(i).dimValues);
+	
+				isEmpty = isEmpty&&isDimEmpty;
       end
     end
     
     function isEmpty = isMostlyEmpty(obj)
       % Allows dimension name to have been set.
-      isEmpty = false;
-      if numel(obj)==1
-        isEmpty = true;
+      isEmpty = true;
+		  for i = 1:numel(obj)
+        isDimEmpty = true;
         % Empty only if all components are empty        
-        isEmpty = isEmpty&&isempty(obj.dimLabels);
-        isEmpty = isEmpty&&isempty(obj.dimUnits);
-        isEmpty = isEmpty&&isempty(obj.dimValues);
+        isDimEmpty = isDimEmpty&&isempty(obj(i).dimLabels);
+        isDimEmpty = isDimEmpty&&isempty(obj(i).dimUnits);
+        isDimEmpty = isDimEmpty&&isempty(obj(i).dimValues);
       end
     end    
     
@@ -409,23 +454,30 @@ classdef arrayDim
       %
       if ischar(idxIn), idxIn = {idxIn}; end;
       if isnumeric(idxIn)
+				% Numeric Dimension Indexing
+				assert(all(idxIn<numel(obj)), ...
+									'Index exceeds object dimensions');
         idxOut = idxIn;
       elseif iscell(idxIn)
+				% Cell referencing by dimension name or number
         idxOut = nan(1,numel(idxIn));
         for i = 1:numel(idxIn)
           if isnumeric(idxIn{i})&&isscalar(idxIn{i})
+						% Numeric indexing within a cell array
+						assert(idxIn{i}<=numel(obj),...
+									'Index exceeds object dimensions');
             idxOut(i) = idxIn{i};
           elseif ischar(idxIn{i})
+						% Referencing by dimension name
             validNames = {obj.dimName};            
             validNames = validNames(~cellfun(@isempty,validNames));
-            if ~isempty(validNames)
-             inName = validatestring(idxIn{i},validNames);
+            if isempty(validNames)
+							error('Name indexing unavailable');
+						end;
+            inName = validatestring(idxIn{i},validNames);
             
-             matched = cellfun(@(x) isequal(x,inName),{obj.dimName});
-             idxOut(i) = find(matched);
-            else
-              error('Name indexing unavailable');
-            end;
+            matched = cellfun(@(x) isequal(x,inName),{obj.dimName});
+            idxOut(i) = find(matched);
           else
             error('Invalid dimension reference');
           end;
