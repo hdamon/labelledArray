@@ -298,39 +298,41 @@ classdef arrayDim < handle & matlab.mixin.Copyable
       end
     end
     
-    function obj = cat(dim,obj,a,varargin)
+    function objOut = cat(dim,objA,objB,varargin)
       % Concatenate dimensions
       
       %% Check for Mutual Consistency
-      assert(isMutuallyConsistent(obj,a,...
+      assert(isMutuallyConsistent(objA,objB,...
         'bsxValid',false,...
         'sizeMismatchValid',true,...
         'sizeMismatchDim',dim,...
         'nExtraDimsValid',0));
       
-      % Copy info for dimensions that haven't been fully defined yet
-      for i = 1:numel(obj)
-        if isMostlyEmpty(obj(i))
+      objOut = objA.copy;
+      
+      % Copy info for dimensions that haven't been fully defined yet      
+      for i = 1:numel(objA)
+        if isMostlyEmpty(objA(i))
           if (i~=dim)
-            obj(i) = a(i);
+            objOut(i) = objB(i).copy;
           else
             % Copy the name for the concatenated dimension
-            obj(i).dimName = a(i).dimName;
+            objOut(i).dimName = objB(i).dimName;
           end
         end
       end
             
-      if isMostlyEmpty(obj(dim))
-        obj(dim) = a(dim);
-      elseif isMostlyEmpty(a(dim))
+      if isMostlyEmpty(objA(dim))
+        objOut(dim) = objB(dim).copy;
+      elseif isMostlyEmpty(objB(dim))
         % Do Nothing
       else      
-        obj(dim).dimSize_   = catSize;
-        obj(dim).dimLabels_ = catLabels;
-        obj(dim).dimUnits_  = catUnits;
-        obj(dim).dimValues_ = catValues;            
+        objOut(dim).dimSize_   = catSize;
+        objOut(dim).dimLabels_ = catLabels;
+        objOut(dim).dimUnits_  = catUnits;
+        objOut(dim).dimValues_ = catValues;            
       end
-      assert(obj(dim).isInternallyConsistent);
+      assert(objOut(dim).isInternallyConsistent);
       
       function out = checkType(in)
         if isempty(in)
@@ -341,8 +343,8 @@ classdef arrayDim < handle & matlab.mixin.Copyable
       end
       
       function newSize = catSize
-        if ~isempty(obj(dim).dimSize_)&&~isempty(a(dim).dimSize_)
-          newSize = obj(dim).dimSize_ + a(dim).dimSize_;
+        if ~isempty(objA(dim).dimSize_)&&~isempty(objB(dim).dimSize_)
+          newSize = objA(dim).dimSize_ + objB(dim).dimSize_;
         else
           % Clear if both aren't explicitly defined.
           newSize = [];
@@ -351,15 +353,15 @@ classdef arrayDim < handle & matlab.mixin.Copyable
       
       function newLabels = catLabels
         % Concatenate Labels
-        labelsA = checkType(obj(dim).dimLabels);
-        labelsB = checkType(a(dim).dimLabels);
+        labelsA = checkType(objA(dim).dimLabels);
+        labelsB = checkType(objB(dim).dimLabels);
         
         if isempty(labelsA)&&~isempty(labelsB)
-          tmp(1:obj(dim).dimSize) = {''};
+          tmp(1:objA(dim).dimSize) = {''};
           labelsA = tmp;
         end;
         if isempty(labelsB)&&~isempty(labelsA)
-          tmp(1:a(dim).dimSize) = {''};
+          tmp(1:objB(dim).dimSize) = {''};
           labelsB = tmp;
         end;
         newLabels = cat(2,labelsA,labelsB);
@@ -367,8 +369,8 @@ classdef arrayDim < handle & matlab.mixin.Copyable
       
       function newUnits = catUnits
         % Concatenate Units
-        unitsA = checkType(obj(dim).dimUnits);
-        unitsB = checkType(a(dim).dimUnits);
+        unitsA = checkType(objA(dim).dimUnits);
+        unitsB = checkType(objB(dim).dimUnits);
         
         
         if ischar(unitsA)&&ischar(unitsB)
@@ -380,23 +382,23 @@ classdef arrayDim < handle & matlab.mixin.Copyable
           end                  
         elseif ischar(unitsA)&&iscellstr(unitsB)
           % Expand Dimensional Units
-          tmp(1:obj(dim).dimSize) = {unitsA};
+          tmp(1:objA(dim).dimSize) = {unitsA};
           unitsA = tmp;
           newUnits = cat(2,unitsA,unitsB);          
           
         elseif ischar(unitsB)&&iscellstr(unitsA)
           % Expand Dimensional Units
-          tmp(1:a(dim).dimSize) = {unitsB};
+          tmp(1:objB(dim).dimSize) = {unitsB};
           unitsB = tmp;
           newUnits = cat(2,unitsA,unitsB);          
           
         elseif isempty(unitsA)&&~isempty(unitsB)
-          tmp(1:obj(dim).dimSize) = {''};
+          tmp(1:objA(dim).dimSize) = {''};
           unitsA = tmp;
           newUnits = cat(2,unitsA,unitsB);
           
         elseif isempty(unitsB)&&~isempty(unitsA)
-          tmp(1:a(dim).dimSize) = {''};
+          tmp(1:objB(dim).dimSize) = {''};
           unitsB = tmp;
           newUnits = cat(2,unitsA,unitsB);
           
@@ -407,7 +409,7 @@ classdef arrayDim < handle & matlab.mixin.Copyable
       end
       
       function newValues = catValues
-        newValues = cat(2,obj(dim).dimValues_,a(dim).dimValues_);
+        newValues = cat(2,objA(dim).dimValues_,objB(dim).dimValues_);
       end
       
     end
@@ -617,17 +619,17 @@ classdef arrayDim < handle & matlab.mixin.Copyable
           'nameMismatchValid',true),'Inconsistent decomposition sizes');
         
         if (obj.dimSize>1)||(a.dimSize==1)
-          dimOut = obj;
+          dimOut = obj.copy;
         else
-          dimOut = a;
+          dimOut = a.copy;
         end;
       else
         dimOut(nDimsOut) = arrayDim;
         for i = 1:nDimsOut
           if i>numel(obj)
-            dimOut(i) = a(i);
+            dimOut(i) = a(i).copy;
           elseif i>numel(a)
-            dimOut(i) = obj(i);
+            dimOut(i) = obj(i).copy;
           else
             dimOut(i) = getConsistentDimensions(obj(i),a(i));
           end;
