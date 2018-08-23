@@ -13,7 +13,7 @@ switch s(1).type
         
         objFields = {'array' 'dimNames' 'dimLabels' 'dimValues' 'dimUnits'};
         if ismember(s(1).subs,objFields)&&isequal(s(2).type,'()')         
-          % Parenthetical referencing into a
+          % Parenthetical referencing into a labelledArray
           s(2).subs = obj.getNumericIndex(s(2).subs{:});
           varargout = {subsref(tmp,s(2:end))};
         else
@@ -51,10 +51,9 @@ switch s(1).type
         
         if numel(s)==1
           varargout = {builtin('subsref',obj,s)};
-        else
-        
-        tmp = builtin('subsref',obj,s(1));
-        varargout = {subsref(tmp,s(2:end))};                
+        else          
+          tmp = builtin('subsref',obj,s(1));
+          varargout = {subsref(tmp,s(2:end))};
         end;
     end
     

@@ -153,6 +153,11 @@ classdef labelledArray < handle & matlab.mixin.Copyable
     %% Overloaded Functions
     %%%%%%%%%%%%%%%%%%%%%%%
     
+    function out = abs(obj)
+      out = obj.copy;
+      out.array = abs(out.array);
+    end
+    
     %%
     function out = size(obj,dim)
       %% Return the size of a labelledArray object
@@ -308,6 +313,16 @@ classdef labelledArray < handle & matlab.mixin.Copyable
       out = applyDimFunc(@sum,obj,1,dim);
     end;
     
+    function out = min(obj,~,dim)
+      if ~exist('dim','var'), dim = 1; end;
+      out = applyDimFunc(@min,obj,2,[],dim);
+    end;
+    
+    function out = max(obj,~,dim)
+      if ~exist('dim','var'), dim = 1; end;
+      out = applyDimFunc(@max,obj,2,[],dim);
+    end;
+    
     function out = mean(obj,dim)
       if ~exist('dim','var'), dim = 1; end;
       out = applyDimFunc(@mean,obj,1,dim);
@@ -399,7 +414,8 @@ classdef labelledArray < handle & matlab.mixin.Copyable
       out = bsxfun(@times,obj,b);
     end;    
         
-    
+    %% dimensions get/set methods
+    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     function out = get.dimensions(obj)
       out = obj.dimensions_;
     end
@@ -771,7 +787,11 @@ classdef labelledArray < handle & matlab.mixin.Copyable
            obj.dimensions(i).dimSize = size(val,i);
          else
            % Add a new dimension
-           obj.dimensions(i) = arrayDim('dimSize',size(val,i));
+           if isempty(obj.dimensions_)
+             obj.dimensions = arrayDim('dimSize',size(val,i));
+           else
+             obj.dimensions(i) = arrayDim('dimSize',size(val,i));
+           end;
          end
         else
         end

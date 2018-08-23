@@ -1,6 +1,10 @@
 function varargout = subsref(obj,s)
 % subsref method for labelledArray objects
 %
+%
+% What should subreferencing an arrayDim look like?'
+%
+% 
 
 switch s(1).type
   case '.'        
