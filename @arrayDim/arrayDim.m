@@ -29,7 +29,8 @@ classdef arrayDim < handle & matlab.mixin.Copyable
       %% Class constructor
       if nargin>0
         if isa(varargin{1},'arrayDim')
-          obj = varargin{1};
+          % Return a copy of the input object
+          obj = varargin{1}.copy;
           return;
         end
         
