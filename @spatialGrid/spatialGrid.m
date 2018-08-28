@@ -143,6 +143,26 @@ classdef spatialGrid < handle & matlab.mixin.Copyable
       obj.centering_ = val;
     end;
     
+    %% Get Grid Points
+    %%%%%%%%%%%%%%%%%%
+    
+    function pts = getGridPts(grid)
+      % Get location in nD space of each point in the grid
+      %
+      
+      allVals = {grid.dimValues};
+      
+      XYZ = cell(1,numel(allVals));
+      [XYZ{:}] = ndgrid(allVals{:});
+      
+      pts = zeros(numel(XYZ{1}),numel(XYZ));
+      for i = 1:numel(XYZ)
+        pts(:,i) = XYZ{i}(:);
+      end;
+      
+    end
+    
+    
     
   end
   
