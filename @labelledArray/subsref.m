@@ -17,7 +17,7 @@ switch s(1).type
           s(2).subs = obj.getNumericIndex(s(2).subs{:});
           varargout = {subsref(tmp,s(2:end))};
         else
-          varargout = {subsref(tmp,s(2:end))};
+          [varargout{1:nargout}] = builtin('subsref',tmp,s(2:end));%{subsref(tmp,s(2:end))};
         end;
 
       end;

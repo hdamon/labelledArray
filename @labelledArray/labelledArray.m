@@ -101,16 +101,25 @@ classdef labelledArray < handle & matlab.mixin.Copyable
     array
     arrayRange
     dimensions
+  end
+  
+  properties (Access=protected)
     dimNames
+    dimSize
     dimLabels
     dimValues
     dimUnits
+    dimRange
   end
   
   properties (Access=protected) % Should possibly be private?
     array_      % The array array
     dimensions_ % Dimension information
     arrayRange_ %
+  end
+  
+  events
+    updatedOut
   end
   
   methods
@@ -120,29 +129,36 @@ classdef labelledArray < handle & matlab.mixin.Copyable
       %% Main object constructor
       if nargin>0
         
+        if isa(array,'labelledArray')
+          obj = array.copy;
+          return;
+        end;
+                  
         checkType = @(x) iscell(x) && ((size(x,2)==2)||(numel(x)>=ndims(array)));
         
         % Input parsing
         p = inputParser;
+        p.KeepUnmatched = true;
         p.addRequired('array',@(x) (isnumeric(x)||isa(x,'labelledArray')));
         p.addParameter('dimNames' , [] , @(x) isempty(x)||checkType(x));
-        p.addParameter('dimLabels', [] , @(x) isempty(x)||checkType(x));
-        p.addParameter('dimUnits' , [] , @(x) isempty(x)||checkType(x));
-        p.addParameter('dimValues', [] , @(x) isempty(x)||checkType(x));
+        %p.addParameter('dimLabels', [] , @(x) isempty(x)||checkType(x));
+        %p.addParameter('dimUnits' , [] , @(x) isempty(x)||checkType(x));
+        %p.addParameter('dimValues', [] , @(x) isempty(x)||checkType(x));
         p.parse(array,varargin{:});
         
         % Property Assignment
         obj.array   = p.Results.array;
         dims            = arrayDim('dimName',p.Results.dimNames,...
-                                   'dimLabels',p.Results.dimLabels,...
-                                   'dimUnits',p.Results.dimUnits,...          
-                                   'dimValues',p.Results.dimValues);  
+                                    p.Unmatched);
+                                   %'dimLabels',p.Results.dimLabels,...
+                                   %'dimUnits',p.Results.dimUnits,...          
+                                   %'dimValues',p.Results.dimValues);  
                                
         if ~isempty(dims)
           if numel(dims)>=obj.ndims
             obj.dimensions_ = dims;
           else
-            error('Insufficient number of dimension provided');
+            error('Insufficient number of dimensions provided');
           end                         
         end;
         
@@ -468,6 +484,23 @@ classdef labelledArray < handle & matlab.mixin.Copyable
       out = {obj.dimensions_.dimName};      
     end;
     
+    function set.dimSize(obj,val)     
+        assert(numel(val)==numel(obj.dimensions_),...
+                  'Must define sizes for all dimensions simultaneously');
+        for idxDim = 1:numel(val)
+          obj.dimensions_(idxDim).dimSize = val(idxDim);
+        end      
+    end
+    
+    function out = get.dimSize(obj)
+      out = [obj.dimensions_.dimSize];
+    end;
+    
+    function out = get.dimRange(obj)
+      out = {obj.dimensions_.dimRange};
+    end;
+    
+    
     %% dimLabels Get/Set Methods
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%
     function set.dimLabels(obj,val)
@@ -558,6 +591,8 @@ classdef labelledArray < handle & matlab.mixin.Copyable
         % been set before.
         return;
       end;
+      
+      if ~exist('restrictionList','var'), restrictionList = {':'}; end;
       
       allIdx = obj.getNumericIndex(restrictionList{:});
       
@@ -725,10 +760,12 @@ classdef labelledArray < handle & matlab.mixin.Copyable
       %%%%%%%%%%%
             
       % Input assertions
-      assert(numel(obj)==1,'Passed multiple objects. Not sure why we''re getting here');      
+      assert(numel(obj)==1,'Subcopy must be called with a single labelledArray object');      
    
+      % Get New Dimensions and Indices
       [newDims,dimIdx] = obj.dimensions_.subselectDimensions(varargin{:});
       
+      % Copy the object
       out = obj.copy;
       out.array_ = obj.array(dimIdx{:});
       out.dimensions_ = newDims;
@@ -775,28 +812,30 @@ classdef labelledArray < handle & matlab.mixin.Copyable
         end
       end
       
-      resetDimensions = isempty(val)||isempty(obj.array_)||isempty(obj.dimensions_);
+      %resetDimensions = isempty(val)||isempty(obj.array_)||isempty(obj.dimensions_);
       
-      obj.array_ = val;
-      obj.arrayRange_ = []; % Clear Array Range
-      
-      %% Adjust dimension sizes
-      for i = 1:ndims(val)
-        if ~isempty(val)
-         if i<=numel(obj.dimensions_)
-           obj.dimensions(i).dimSize = size(val,i);
-         else
-           % Add a new dimension
-           if isempty(obj.dimensions_)
-             obj.dimensions = arrayDim('dimSize',size(val,i));
-           else
-             obj.dimensions(i) = arrayDim('dimSize',size(val,i));
-           end;
-         end
-        else
-        end
-      end;
-              
+      if ~isequal(obj.array_,val)
+        obj.array_ = val;
+        obj.arrayRange_ = []; % Clear Array Range
+        
+        %% Adjust dimension sizes
+        for i = 1:ndims(val)
+          if ~isempty(val)
+            if i<=numel(obj.dimensions_)
+              obj.dimensions(i).dimSize = size(val,i);
+            else
+              % Add a new dimension
+              if isempty(obj.dimensions_)
+                obj.dimensions = arrayDim('dimSize',size(val,i));
+              else
+                obj.dimensions(i) = arrayDim('dimSize',size(val,i));
+              end;
+            end
+          else
+          end
+        end;
+        notify(obj,'updatedOut');
+      end
     end
     
   end

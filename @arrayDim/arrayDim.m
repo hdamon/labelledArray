@@ -2,17 +2,41 @@ classdef arrayDim < handle & matlab.mixin.Copyable
   % Object class for labelledArray dimension information
   %
   %
+  %
+  % Properties
+  % ----------
+  %     dimName : String containing the dimension name
+  %     dimSize : Number of elements along that dimension
+  %   fixedSize : Flag to determine whether dimSize is allowed to change
+  %   dimLabels : Cellstr of names for each element of the array
+  %    dimUnits : Either:
+  %                  String containing a uniform set of units for all
+  %                  values
+  %                  Cellstr containing units defined for each individiual
+  %                  element (Typically used when naming elements)
+  %   dimValues : Numeric value for each element. Must be sorted in
+  %                  ascending order.
+  %    dimRange : Minimum and maximum values of obj.dimValues
+  %
+  %
   
+  
+  %% Public property access is through the dependent properties
   properties (Dependent)
     dimName
-    dimSize
-    fixedSize
+    dimSize    
     dimLabels
     dimUnits
     dimValues
     dimRange
   end
   
+  properties (Dependent, Hidden=true)
+    fixedSize;
+  end;
+  
+  
+  %% Actual values are stored in private properties 
   properties (Access=private)
     dimName_
     dimSize_
@@ -41,9 +65,9 @@ classdef arrayDim < handle & matlab.mixin.Copyable
         isCharOrCellStr = @(x) ischar(x)||iscellstr(x);
         
         
-        p = inputParser;
+        p = inputParser;        
         p.addParameter('dimName'  , [], @(x) isEmptyOrCell(x)||ischar(x));
-        p.addParameter('dimSize'  , [], @(x) isEmptyOrCell(x)||isNumericScalar(x));
+        p.addParameter('dimSize'  , [], @(x) isEmptyOrCell(x)||isNumericScalar(x)||isNumericVector(x));
         p.addParameter('dimLabels', [], @(x) isEmptyOrCell(x)||isCharOrCellStr(x));
         p.addParameter('dimUnits' , [], @(x) isEmptyOrCell(x)||isCharOrCellStr(x));
         p.addParameter('dimValues', [], @(x) isEmptyOrCell(x)||isNumericVector(x));
@@ -75,6 +99,17 @@ classdef arrayDim < handle & matlab.mixin.Copyable
       end;
     end; % END Constructor
     
+    
+    function trySet(obj,field,val)
+      oldVal = obj.(field);
+      obj.(field) = val;
+      try
+        assert(obj.isInternallyConsistent);
+      catch
+        obj.(field) = oldVal;
+      end
+    end
+    
     %% Get/Set obj.dimName
     %%%%%%%%%%%%%%%%%%%%%%
     function name = get.dimName(obj)
@@ -82,8 +117,7 @@ classdef arrayDim < handle & matlab.mixin.Copyable
     end;
     
     function set.dimName(obj,val)
-      obj.dimName_ = val;
-      assert(obj.isInternallyConsistent);
+      obj.trySet('dimName_',val);      
     end
     
     function set.dimName_(obj,val)
@@ -91,10 +125,15 @@ classdef arrayDim < handle & matlab.mixin.Copyable
       obj.dimName_ = val;
     end;
     
-    %% Get/Set obj.dimSize
+    %% Get/Set obj.dimSize and related properties
     %%%%%%%%%%%%%%%%%%%%%%
     function size = allDimSize(obj)
       % Return an array of all dimensions sizes
+      %
+      % size = allDimSize(obj)
+      %
+      % For single arrayDim objects, this is the same as obj.dimSize. When
+      % passed an array of a
       size = cell2mat({obj.dimSize});
     end
     
@@ -102,6 +141,7 @@ classdef arrayDim < handle & matlab.mixin.Copyable
       % Determine if dimension has a fixed size
       %
       % Not sure if this is entirely necessary.
+      warning('arrayDim.fixedSize is deprecated');
       if isempty(obj.dimSize_)
         isFixed = false;
       else
@@ -136,7 +176,7 @@ classdef arrayDim < handle & matlab.mixin.Copyable
     end
     
     function set.dimSize(obj,val)
-      obj.dimSize_ = val;
+      obj.trySet('dimSize_',val);      
     end
     
     function set.dimSize_(obj,val)
@@ -152,8 +192,9 @@ classdef arrayDim < handle & matlab.mixin.Copyable
     end;
     
     function set.dimLabels(obj,val)
-      obj.dimLabels_ = val;
-      assert(obj.isInternallyConsistent);
+      obj.trySet('dimLabels_',val);
+      %obj.dimLabels_ = val;
+      %assert(obj.isInternallyConsistent);
     end;
     
     function set.dimLabels_(obj,val)
@@ -176,8 +217,9 @@ classdef arrayDim < handle & matlab.mixin.Copyable
     end
     
     function set.dimUnits(obj,val)
-      obj.dimUnits_ = val;
-      assert(obj.isInternallyConsistent);
+      obj.trySet('dimUnits_',val);
+      %obj.dimUnits_ = val;
+      %assert(obj.isInternallyConsistent);
     end
     
     function set.dimUnits_(obj,val)
@@ -199,10 +241,11 @@ classdef arrayDim < handle & matlab.mixin.Copyable
     function values = get.dimValues(obj)
       values = obj.dimValues_;
     end
-    
+        
     function set.dimValues(obj,val)
-      obj.dimValues_ = val(:)';
-      assert(obj.isInternallyConsistent);
+      obj.trySet('dimValues_',val);
+      %obj.dimValues_ = val(:)';
+      %assert(obj.isInternallyConsistent);
     end;
     
     function set.dimValues_(obj,val)
@@ -298,6 +341,26 @@ classdef arrayDim < handle & matlab.mixin.Copyable
         isEmpty = isEmpty&&isempty(obj(i).dimValues);
       end
     end
+    
+    function isUniform = isUniformlySampled(obj)
+      
+      tol = 1e-3;
+      
+      isUniform = true;
+      if numel(obj)>1
+        for i = 1:numel(obj)
+          isUniform = isUniform&&isUniformlySampled(obj(i));
+        end
+        return;
+      end
+            
+      if ~isempty(obj.dimValues)
+        delta = obj.dimValues(2:end)-obj.dimValues(1:end-1);
+        isUniform = all(abs(delta-mean(delta))<tol);
+      end
+      
+    end
+    
     
     function objOut = cat(dim,objA,objB,varargin)
       % Concatenate dimensions
@@ -861,7 +924,7 @@ classdef arrayDim < handle & matlab.mixin.Copyable
       %
       %
       [dName,nameSize]    = convertToCell(Results.dimName,@iscell);
-      [dSize,sizeSize]    = convertToCell(Results.dimSize,@iscell);
+      [dSize,sizeSize]    = convertToCell(Results.dimSize,@iscell,true);
       [dLabels,labelSize] = convertToCell(Results.dimLabels,...
         @(x) iscell(x)&&~iscellstr(x));
       [dUnits,unitSize]   = convertToCell(Results.dimUnits,...
@@ -876,8 +939,14 @@ classdef arrayDim < handle & matlab.mixin.Copyable
       validOut.dUnits  = validateCell(dUnits,nOutput);
       validOut.dValues = validateCell(dValues,nOutput);
       
-      function [cellOut, size] = convertToCell(input,checkFHandle)
+      function [cellOut, size] = convertToCell(input,checkFHandle,expand)
         % Convert input into correct cell form
+        if ~exist('expand','var'),expand = false; end;
+        
+        if expand
+          input = num2cell(input);
+        end;
+        
         if checkFHandle(input)
           size = numel(input);
           cellOut = input;
@@ -889,7 +958,7 @@ classdef arrayDim < handle & matlab.mixin.Copyable
       
       function cellOut = validateCell(cellIn, nOutput)
         % Validate the size of each input cell.
-        isEmpty = (numel(cellIn)==1)&&isempty(cellIn{1});
+        isEmpty = isempty(cellIn)||(numel(cellIn)==1)&&isempty(cellIn{1});
         sizeMatch = numel(cellIn)==nOutput;
         assert(isEmpty||sizeMatch,'Input size mismatch');
         if isEmpty

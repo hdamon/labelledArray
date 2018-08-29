@@ -38,7 +38,8 @@ classdef spatialGrid < handle & matlab.mixin.Copyable
       
       obj.dimensions = dimensions;
       
-      p = inputParser;
+      p = inputParser;   
+      p.KeepUnmatched = true;
       p.addParameter('origin',[],@(x) isnumeric(x)&&(numel(x)==numel(dimensions)));
       p.addParameter('directions',[]);
       p.addParameter('orientation','Left-Posterior-Superior');
@@ -144,13 +145,12 @@ classdef spatialGrid < handle & matlab.mixin.Copyable
     end;
     
     %% Get Grid Points
-    %%%%%%%%%%%%%%%%%%
-    
+    %%%%%%%%%%%%%%%%%%    
     function pts = getGridPts(grid)
       % Get location in nD space of each point in the grid
       %
       
-      allVals = {grid.dimValues};
+      allVals = {grid.dimensions.dimValues};
       
       XYZ = cell(1,numel(allVals));
       [XYZ{:}] = ndgrid(allVals{:});
@@ -160,9 +160,73 @@ classdef spatialGrid < handle & matlab.mixin.Copyable
         pts(:,i) = XYZ{i}(:);
       end;
       
+      pts = pts*grid.directions' + grid.origin;
+      
     end
     
+    function isUniform = isUniformlySampled(grid)
+      
+      nDim = numel(grid.dimensions);        
+    end
     
+    %% Find Nearest Nodes
+    %%%%%%%%%%%%%%%%%%%%%%
+    function [idxOut] = getNearestNodes(grid,Positions,useNodes)
+      % Find index of grid nodes nearest to specific locations
+      %  
+      % function [idxOut] = getNearestNodes(grid,Positions,useNodes)
+      %
+      %
+      
+      if ~exist('useNodes','var'),useNodes = ':'; end;
+      
+      pts = grid.getGridPts;
+      pts = pts(useNodes,:);
+      
+      % For each position to be shifted, find the closest node.
+      idxOut = zeros(size(Positions,1),1);
+      for i = 1:size(Positions,1)
+        dist = Pts - repmat(Positions(i,:),size(Pts,1),1);
+        dist = sqrt(sum(dist.^2,2));
+        
+        q = find(dist==min(dist));
+        if numel(q)>1, % Pick a random node if there's more than one
+          q = q(ceil(numel(q)*rand(1,1)));
+        end;
+        idxOut(i) = UseNodes(q);
+      end
+      
+    end
+    
+    %% Find Grid Bounding Box
+    %%%%%%%%%%%%%%%%%%%%%%%%%
+    function boxOut = getBoundingBox(grid)
+      
+      nDim = numel(grid.dimensions);
+      boxOut = zeros(2^nDim,nDim);
+      
+      for idxDim = 1:nDim
+        colIdx = getColIdx(nDim,idxDim);
+        boxOut(:,idxDim) = grid.dimensions(idxDim).dimRange(colIdx);
+      end
+      
+      boxOut = boxOut*grid.directions';
+      boxOut = boxOut + grid.origin;
+            
+      if strcmpi(grid.centering,'cell')
+        % There's a big assumption here that the grid is uniformly spaced.
+        % Not sure how to deal with it otherwise.
+        boxOut = boxOut - (grid.directions*[0.5 0.5 0.5]')';
+      else        
+      end
+      
+      function newCol = getColIdx(totDim,depth)        
+        tmp = ones(2^(totDim-depth),1);
+        tmp = [tmp ; 2*tmp];
+        
+        newCol = repmat(tmp,2^(depth-1),1);                
+      end            
+    end
     
   end
   
