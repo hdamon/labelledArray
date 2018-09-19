@@ -31,7 +31,11 @@ switch s(1).type
       %% Implement obj(indices)
       
       if (numel(s(1).subs)==1)&&(numel(s(1).subs{1})==1)&&(s(1).subs{1}==1)
-        varargout = {builtin('subsref',obj,s)};
+        if numel(s)>1
+         varargout = {subsref(obj,s(2:end))};
+        else
+          varargout = {builtin('subsref',obj,s)};
+        end;
         return;
       end
       

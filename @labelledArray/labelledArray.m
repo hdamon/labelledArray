@@ -251,14 +251,26 @@ classdef labelledArray < handle & matlab.mixin.Copyable
       
       assert(isa(a,class(obj)),'Can only concatenate like objects');
       
-      % Build output object
+      % Build output object      
       out = obj.copy;
+      
+      if numel(out.dimensions_)<dim
+        out.dimensions_(dim) = arrayDim;
+      end;      
+      
       out.dimensions_ = cat(dim,out.dimensions_,a.dimensions_);
       out.array_ = cat(dim,obj.array_,a.array_);
             
-      if ~isempty(varargin)
-        % Recurse when concatenating multiple objects
-        out = cat(dim,out,varargin{:});
+      if ~isempty(varargin)        
+        if numel(varargin)<5
+         out = cat(dim,out,varargin{:});
+        else
+         % Split recursion when concatenating multiple objects          
+         nSplit = ceil(numel(varargin)/2);                
+         blockA = cat(dim,out,varargin{1:nSplit});
+         blockB = cat(dim,varargin{(nSplit+1):end});        
+         out = cat(dim,blockA,blockB);
+        end;
       end;
       
     end
@@ -273,7 +285,7 @@ classdef labelledArray < handle & matlab.mixin.Copyable
     
     function out = sqrt(obj)
       out = obj.copy;
-      obj.array_ = sqrt(obj.array_);
+      out.array_ = sqrt(obj.array_);
     end;
     
     %% Helper function for functions that collapse a dimension to a singleton
@@ -398,7 +410,8 @@ classdef labelledArray < handle & matlab.mixin.Copyable
         end;
         
         objOut(idxObj) = copy(obj(idxObj));
-        objOut(idxObj).array_ = bsxfun(funcHandle,obj.array,coeff);
+        objOut(idxObj).array_ = bsxfun(funcHandle,obj(idxObj).array,coeff);
+        objOut(idxObj).arrayRange_ = [];
         objOut(idxObj).dimensions_ = dimsOut;        
       end;
       
@@ -437,8 +450,9 @@ classdef labelledArray < handle & matlab.mixin.Copyable
     end
     
     function set.dimensions(obj,val)
-      obj.dimensions_ = val;
-      assert(isInternallyConsistent(obj.dimensions_));
+      obj.setDimensions(val);
+      %obj.dimensions_ = val;
+      %assert(isInternallyConsistent(obj.dimensions_));
     end
     
     %% array Get/Set Methods
@@ -776,7 +790,12 @@ classdef labelledArray < handle & matlab.mixin.Copyable
       end;
       
     end
-         
+        
+    function setDimensions(obj,val)      
+      obj.dimensions_ = val;
+      assert(isInternallyConsistent(obj.dimensions_));
+    end
+    
     %%
     function setArray(obj,val)
       % Overloadable set function for obj.array
@@ -815,6 +834,8 @@ classdef labelledArray < handle & matlab.mixin.Copyable
       %resetDimensions = isempty(val)||isempty(obj.array_)||isempty(obj.dimensions_);
       
       if ~isequal(obj.array_,val)
+        % Set Array, and Clear Range (Will be computed the next time its
+        % requested)
         obj.array_ = val;
         obj.arrayRange_ = []; % Clear Array Range
         

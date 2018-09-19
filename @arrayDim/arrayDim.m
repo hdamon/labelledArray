@@ -370,7 +370,7 @@ classdef arrayDim < handle & matlab.mixin.Copyable
         'bsxValid',false,...
         'sizeMismatchValid',true,...
         'sizeMismatchDim',dim,...
-        'nExtraDimsValid',0));
+        'nExtraDimsValid',1));
       
       objOut = objA.copy;
       
@@ -381,13 +381,17 @@ classdef arrayDim < handle & matlab.mixin.Copyable
             objOut(i) = objB(i).copy;
           else
             % Copy the name for the concatenated dimension
-            objOut(i).dimName = objB(i).dimName;
+            if i<=numel(objB)
+             objOut(i).dimName = objB(i).dimName;
+            end;
           end
         end
       end
             
       if isMostlyEmpty(objA(dim))
-        objOut(dim) = objB(dim).copy;
+        if  dim <=numel(objB)
+          objOut(dim) = objB(dim).copy;
+        end;
       elseif isMostlyEmpty(objB(dim))
         % Do Nothing
       else      
