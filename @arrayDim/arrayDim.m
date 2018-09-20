@@ -559,7 +559,7 @@ classdef arrayDim < handle & matlab.mixin.Copyable
       if isempty(obj.dimLabels),  isStringValid = false;  end;
       
       % Value referencing is valid if values are assigned
-      isValueValid = false; % Turned off for now
+      isValueValid = true; % Turned off for now
       if isempty(obj.dimValues), isValueValid = false; end;
       
       %% Select According to Reference Type and Find Correct Numeric Indices
@@ -600,8 +600,20 @@ classdef arrayDim < handle & matlab.mixin.Copyable
           idxOut(idx) = tmp;
         end
       elseif iscell(refIn)
+        assert(isValueValid,'Value indexing unavailable for this dimension');
+        
         % Value Indexing
-        error('Value indexing not yet implemented');
+        assert(numel(refIn{1})==2,'Value referencing must be done with range limits');
+        
+        range = refIn{1};
+        [~,lowIdx] = min(abs(obj.dimValues-range(1)));
+        [~,highIdx] = min(abs(obj.dimValues-range(2)));
+        
+        assert(lowIdx<highIdx,'Poorly defined value range');
+        
+        idxOut = lowIdx:highIdx;
+                
+        %error('Value indexing not yet implemented');
       else
         %% Otherwise, error.
         error('Incorrect reference type');

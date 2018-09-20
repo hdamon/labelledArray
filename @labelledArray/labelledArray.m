@@ -311,6 +311,8 @@ classdef labelledArray < handle & matlab.mixin.Copyable
       %
       
       dim = varargin{idxDim};
+      dim = obj.findDimensions(dim); % Enable name based referencing
+      varargin{idxDim} = dim;
       out = obj.copy;
       out.array_ = funcHandle(obj.array_,varargin{:});      
       
@@ -664,16 +666,7 @@ classdef labelledArray < handle & matlab.mixin.Copyable
       dimsOut = getConsistentDimensions(obj.dimensions_,b.dimensions_);                
     end
     
-    
-  end
-  
 
-  %% Protected Methods
-  %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-  %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-  methods (Access=protected)
-    
-    %%
     function idxOut = findDimensions(obj,dimRefs)
       %% Return the numeric index of the dimension, given a numeric or name based reference
       %
@@ -695,6 +688,17 @@ classdef labelledArray < handle & matlab.mixin.Copyable
       
       idxOut = obj.dimensions_.findDimensions(dimRefs);      
     end
+    
+    
+  end
+  
+
+  %% Protected Methods
+  %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+  %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+  methods (Access=protected)
+    
+    %%
     
     
     %%

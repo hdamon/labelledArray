@@ -5,7 +5,9 @@ function varargout = subsref(obj,s)
 switch s(1).type
   case '.'       
     if length(s)>1
-      if ischar(s(1).subs)&&ismember(s(1).subs,methods(obj))
+      
+      hiddenMethods = {'findDimensions','isMutuallyConsistent','getConsistentDimensions'};
+      if ischar(s(1).subs)&&(ismember(s(1).subs,methods(obj))||ismember(s(1).subs,hiddenMethods))
         % If we're calling a method, pass the arguments
         varargout = {builtin('subsref',obj,s)};
       else
@@ -30,7 +32,8 @@ switch s(1).type
     if numel(obj) == 1
       %% Implement obj(indices)
       
-      if (numel(s(1).subs)==1)&&(numel(s(1).subs{1})==1)&&(s(1).subs{1}==1)
+      if (numel(s(1).subs)==1)&&isnumeric(s(1).subs{1})...
+            &&(numel(s(1).subs{1})==1)&&(s(1).subs{1}==1)
         if numel(s)>1
          varargout = {subsref(obj,s(2:end))};
         else
