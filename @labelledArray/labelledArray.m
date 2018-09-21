@@ -50,7 +50,7 @@ classdef labelledArray < handle & matlab.mixin.Copyable
   %             2) For a single labelledarray object, returns the size of
   %                   the array.
   %
-  %   ndims : Behavines in one of two ways:
+  %   ndims : Behaves in one of two ways:
   %             1) For an array of labelledarray objects, returns the size
   %                   of the array.
   %             2) For a single labelledarray object, returns the size of
@@ -59,6 +59,12 @@ classdef labelledArray < handle & matlab.mixin.Copyable
   % NOTE: The easiest way to determine which behavior will be elicited is
   %         to check numel(obj).  If numel(obj)>1, you get standard
   %         behavior.
+  %
+  %   permute : Permute dimension order in labelledArray objects
+  %               This works largely the same as permute for normal Matlab
+  %               arrays, but additionally allows 
+  %
+  %       cat : Concatenate labelledArray objects
   %
   % Referencing into labelledarray Objects
   % --------------------------------------
@@ -85,6 +91,7 @@ classdef labelledArray < handle & matlab.mixin.Copyable
   %                     work as expected.
   %
   % Label Indexing:
+  % ---------------
   %
   % For dimensions that have had dimLabels assigned, the array can also be
   % directly indexed using those labels:
@@ -96,14 +103,87 @@ classdef labelledArray < handle & matlab.mixin.Copyable
   % along the second dimension have been assigned the labels 'A', 'B', and
   % 'C',
   %
+  % Functions that Operate on the Data In-Place:
+  % --------------------------------------------
   %
+  % Certain functions operate on data in place, and produce an output array 
+  % is the same size as the input. 
+  %
+  %   power:
+  %
+  %   sqrt
+  %
+  % Functions with Implicit Dimension Expansion
+  % -------------------------------------------
+  %
+  %  A number of functions allow implicit dimension expansion. See the help
+  %  for bsxfun() for more information, but as an example:
+  %
+  %     [1 2 3; 1 2 3; 1 2 3] + [1 2 3] = [2 4 6; 2 4 6; 2 4 6]
+  %   or:
+  %     [1 2 3; 1 2 3; 1 2 3] + [1 2 3]' = [ 2 3 4; 3 4 5; 4 5 6];
+  %       (Note transpose in select element of left hand side)
+  %
+  %  These functions all make use of an overload bsxfun() method to compute
+  %  their results. 
+  %
+  %  When applied to an array of labelledArray objects, each of these
+  %  functions will apply the operation independently to every element 
+  %  of the array.
+  %
+  %   plus:
+  %
+  %   minus:
+  %
+  %   rdivide: Same as A./b where A is the labelledArray object
+  %             NOTE: This is elementwise division. NOT matrix division.
+  %
+  %   ldivide: Same as b./A, where A is the labelledArray object
+  %             NOTE: This is elementwise division. NOT matrix division.
+  %
+  %   times:
+  %
+  %
+  %
+  % Functions that Collapse a Dimension
+  % -----------------------------------
+  %
+  % A range of functions operate along a specific dimension, collapsing a
+  % vector of values into a scalar. The following functions have been
+  % configured to operate properly with labelledArray objects.  When
+  % collapsing a dimension, the resulting dimension will have a have the
+  % same name as the old dimension, but with dimUnits modified to contain
+  % the name of the function that was applied.
+  %
+  % IE: Computing the mean value of an EEG array along the channel
+  % dimension, with units 'uV' will yield an output dimension with units
+  % 'mean(uV)'
+  %
+  %  These functions all make use of the applyDimFunc() method to compute
+  %  their outputs.  
+  %
+  %  sum :
+  %
+  %  min :
+  %  
+  %  max :
+  %
+  %  mean : 
+  %  
+  %  std :
+  %
+  %  var :
+  %
+  
   properties (Hidden,Dependent)
     array
     arrayRange
     dimensions
   end
   
-  properties (Access=protected)
+  properties (Access=protected,Dependent)
+    % These properties were deprecated with the creatin of the arrayDim
+    % object class. New functionality should access
     dimNames
     dimSize
     dimLabels
@@ -141,9 +221,9 @@ classdef labelledArray < handle & matlab.mixin.Copyable
         p.KeepUnmatched = true;
         p.addRequired('array',@(x) (isnumeric(x)||isa(x,'labelledArray')));
         p.addParameter('dimNames' , [] , @(x) isempty(x)||checkType(x));
-        %p.addParameter('dimLabels', [] , @(x) isempty(x)||checkType(x));
-        %p.addParameter('dimUnits' , [] , @(x) isempty(x)||checkType(x));
-        %p.addParameter('dimValues', [] , @(x) isempty(x)||checkType(x));
+       % p.addParameter('dimLabels', [] , @(x) isempty(x)||checkType(x));
+       % p.addParameter('dimUnits' , [] , @(x) isempty(x)||checkType(x));
+       % p.addParameter('dimValues', [] , @(x) isempty(x)||checkType(x));
         p.parse(array,varargin{:});
         
         % Property Assignment
@@ -168,12 +248,7 @@ classdef labelledArray < handle & matlab.mixin.Copyable
     
     %% Overloaded Functions
     %%%%%%%%%%%%%%%%%%%%%%%
-    
-    function out = abs(obj)
-      out = obj.copy;
-      out.array = abs(out.array);
-    end
-    
+       
     %%
     function out = size(obj,dim)
       %% Return the size of a labelledArray object
@@ -197,8 +272,12 @@ classdef labelledArray < handle & matlab.mixin.Copyable
         else
           out = size(obj.array,dim);
         end;
-      else
-        out = builtin('size',obj);
+      else        
+        if ~exist('dim','var')
+          out = builtin('size',obj,dim);
+        else
+          out = builtin('size',obj,dim);
+        end;
       end
     end
     
@@ -223,7 +302,7 @@ classdef labelledArray < handle & matlab.mixin.Copyable
     end
     
     %%
-    function out = permute(obj,order)
+    function out = permute(obj,varargin)
       % Permute the order of the array
       %
       % out = permute(obj,order)
@@ -237,8 +316,8 @@ classdef labelledArray < handle & matlab.mixin.Copyable
       %								dimension dimNames.
       %
       
-      newOrder = obj.getDimensionOrdering(order);
-      
+      newOrder = obj.findDimensions(varargin{:});
+            
       out = obj.copy;
       out.array_      = permute(obj.array_,newOrder);
       out.dimensions_ = obj.dimensions(newOrder);      
@@ -280,13 +359,18 @@ classdef labelledArray < handle & matlab.mixin.Copyable
     
     function out = power(obj,b)
       out = obj.copy;
-      out.array_ = power(obj.array_,b);      
+      out.array_ = power(out.array_,b);      
     end;
     
     function out = sqrt(obj)
       out = obj.copy;
-      out.array_ = sqrt(obj.array_);
+      out.array_ = sqrt(out.array_);
     end;
+    
+    function out = abs(obj)
+      out = obj.copy;
+      out.array_ = abs(out.array_);
+    end    
     
     %% Helper function for functions that collapse a dimension to a singleton
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -390,11 +474,12 @@ classdef labelledArray < handle & matlab.mixin.Copyable
       %
       % Checks the consistency of the inputs, and then calls:
       %
-      % tfX = bsxfun(funcHandle,obj,tfX,coeff)
+      % If numel(obj)>1, applies funcHandle indpendently to each element of
+      % obj, such that numel(objOut)==numel(objIn)      
       %
       % When b is:
-      %   A timeFrequencyDecomposition obj:  coeff = b.tfX
-      %                          OTHERWISE:  coeff = b;
+      %   A labelledArray object:  coeff = b.array
+      %                OTHERWISE:  coeff = b;
       %
       %
       
@@ -467,22 +552,6 @@ classdef labelledArray < handle & matlab.mixin.Copyable
     function out = get.array(obj)
       out = obj.array_;
     end;
-    
-%     function set.array_(obj,val)
-%       obj.array_ = val;
-%       %% Adjust dimension sizes
-%       for i = 1:ndims(val)
-%         if ~isempty(val)
-%          if i<=numel(obj.dimensions_)
-%            obj.dimensions(i).dimSize = size(val,i);
-%          else
-%            % Add a new dimension
-%            obj.dimensions(i) = arrayDim('dimSize',size(val,i));
-%          end
-%         else
-%         end
-%       end;      
-%     end
     
     %% dimNames Get/Set Methods
     %%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -598,10 +667,16 @@ classdef labelledArray < handle & matlab.mixin.Copyable
       % Calling when otherwise unnecessary can increased computation time
       % when dealing with large arrays through the min() and max() calls.
       %
-      % restrictionList is included here for support in subclasses.
+      % restrictionList is included here for support in subclasses, where
+      % it may be desirable to compute the range only over a subset of
+      % indexes (IE: Reject auxilliary channels when computing the range
+      % for an EEG object)
       %
       
+      % Flag for Forced Recomputation
       if ~exist('force','var'),force = false; end;
+      
+      % 
       if isempty(obj.arrayRange_)&&~force  
         % Only update the range if we're actually requesting it, or it's
         % been set before.
@@ -667,26 +742,48 @@ classdef labelledArray < handle & matlab.mixin.Copyable
     end
     
 
-    function idxOut = findDimensions(obj,dimRefs)
-      %% Return the numeric index of the dimension, given a numeric or name based reference
+    function idxOut = findDimensions(obj,varargin)
+      %% Return the numeric index for one or more dimensions, given a numeric or name based reference
       %
-      % idxOut = findDimensions(obj,dimRef)
+      % idxOut = findDimensions(obj,varargin)
       %
       % Inputs
       % ------
-      %		obj  : labelledArray object
-      %	dimRef : Numeric vector of dimension indices, character string with
-      %             a single name, or a cell array of numeric indices and
-      %             character strings.
+      %		  obj  : labelledArray object
+      %	varargin : Dimension referencing which can take one of several
+      %             forms:
+      %               A) idxOut = findDimensions(obj,[1 2 3])
+      %                    Input can be a numeric array of dimension
+      %                    indices.
+      %               B) idxOut = findDimensions(obj,'A',2,'C')
+      %                    Input can be provided as a comma-separated list
+      %                    of dimension names or numbers.
+      %               C) idxOut = findDimensions(obj,{'A','B', 3})
+      %                    Input can be provided as a cell array, where
+      %                    each cell contains either a dimension name or
+      %                    number.
       %
       % Outputs
       % -------
       %  idxOut : Numeric index of the dimensions associated with
-      %							the strings in dimNames
+      %							the strings in varargin
       %
+      % Example
+      % -------
+      %
+      %  Empty crlEEG.EEG objects have two dimensions. The first dimension
+      %  has E.dimNames{1}=='time', and the second had
+      %  E.dimNames{2}=='channel';
+      %
+      %   E = crlEEG.EEG; 
+      %   idx = E.findDimensions('channel','time')
+      %
+      %   ans = 
+      %       2   1      
+      %    
       %
       
-      idxOut = obj.dimensions_.findDimensions(dimRefs);      
+      idxOut = obj.dimensions_.findDimensions(varargin{:});      
     end
     
     
@@ -697,10 +794,7 @@ classdef labelledArray < handle & matlab.mixin.Copyable
   %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
   %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
   methods (Access=protected)
-    
-    %%
-    
-    
+     
     %%
     function idxOut = getNumericIndex(obj,varargin)
       %% Get numeric indexing into a single labelledArray object

@@ -1,7 +1,7 @@
 classdef arrayDim < handle & matlab.mixin.Copyable
   % Object class for labelledArray dimension information
   %
-  %
+  % dim = arrayDim(varargin)
   %
   % Properties
   % ----------
@@ -19,10 +19,9 @@ classdef arrayDim < handle & matlab.mixin.Copyable
   %    dimRange : Minimum and maximum values of obj.dimValues
   %
   %
-  
-  
-  %% Public property access is through the dependent properties
+      
   properties (Dependent)
+    %% Public and subclass property access is through the dependent properties    
     dimName
     dimSize    
     dimLabels
@@ -32,12 +31,12 @@ classdef arrayDim < handle & matlab.mixin.Copyable
   end
   
   properties (Dependent, Hidden=true)
+    % fixedSize is largely deprecated?
     fixedSize;
   end;
-  
-  
-  %% Actual values are stored in private properties 
+     
   properties (Access=private)
+    %% Actual values are stored in private properties     
     dimName_
     dimSize_
     dimLabels_
@@ -63,8 +62,7 @@ classdef arrayDim < handle & matlab.mixin.Copyable
         isNumericScalar = @(x) isnumeric(x)&&isscalar(x);
         isNumericVector = @(x) isnumeric(x)&&isvector(x);
         isCharOrCellStr = @(x) ischar(x)||iscellstr(x);
-        
-        
+                
         p = inputParser;        
         p.addParameter('dimName'  , [], @(x) isEmptyOrCell(x)||ischar(x));
         p.addParameter('dimSize'  , [], @(x) isEmptyOrCell(x)||isNumericScalar(x)||isNumericVector(x));
@@ -98,9 +96,9 @@ classdef arrayDim < handle & matlab.mixin.Copyable
         
       end;
     end; % END Constructor
-    
-    
+        
     function trySet(obj,field,val)
+      % Make sure fields aren't overwritten unless successful
       oldVal = obj.(field);
       obj.(field) = val;
       try
@@ -343,7 +341,10 @@ classdef arrayDim < handle & matlab.mixin.Copyable
     end
     
     function isUniform = isUniformlySampled(obj)
-      
+      % Check if the dimension is uniformly sampled
+      %
+      % isUniform = isUniformlySampled(obj)
+      %
       tol = 1e-3;
       
       isUniform = true;
@@ -370,7 +371,7 @@ classdef arrayDim < handle & matlab.mixin.Copyable
         'bsxValid',false,...
         'sizeMismatchValid',true,...
         'sizeMismatchDim',dim,...
-        'nExtraDimsValid',1));
+        'nExtraDimsValid',1),'Dimensions are not mutually consistent');
       
       objOut = objA.copy;
       
@@ -518,9 +519,17 @@ classdef arrayDim < handle & matlab.mixin.Copyable
     
     
     function idxOut = getIndexIntoDimensions(obj,varargin)
-      % Index into one or more dimensions
+      % Index into one or more dimensions by index, name, or value.
       %
       % idxOut = getIndexIntoDimensions(obj,varargin)
+      %
+      % getIndexIntoDimensions() allows subreferencing of arrayDim objects
+      % in three ways:
+      %   1) Providing varargin = ':' returns ':', referencing all elements
+      %          along the dimension.
+      %   2) Providing a numeric array 
+      %   1) Using standard numeric indexing
+      %          [1 2 3] = obj.getIndexIntoDimensions([1 2 3])
       %
       % Inputs
       % ------
@@ -602,10 +611,15 @@ classdef arrayDim < handle & matlab.mixin.Copyable
       elseif iscell(refIn)
         assert(isValueValid,'Value indexing unavailable for this dimension');
         
-        % Value Indexing
-        assert(numel(refIn{1})==2,'Value referencing must be done with range limits');
+        if numel(refIn)==1
+          range = refIn{1};
+        else
+          range = [refIn{1} refIn{2}];
+        end;
         
-        range = refIn{1};
+        % Value Indexing
+        assert(numel(range)==2,'Value referencing must be done with range limits');
+                
         [~,lowIdx] = min(abs(obj.dimValues-range(1)));
         [~,highIdx] = min(abs(obj.dimValues-range(2)));
         
@@ -617,13 +631,10 @@ classdef arrayDim < handle & matlab.mixin.Copyable
       else
         %% Otherwise, error.
         error('Incorrect reference type');
-      end;
-      
-      
+      end;            
     end
-    
-    
-    function idxOut = findDimensions(obj,idxIn)
+        
+    function idxOut = findDimensions(obj,varargin)
       %% Get the numeric indices of dimensions by name or numeric reference
       %
       % idxOut = findDimensions(obj,idxin)
@@ -641,10 +652,23 @@ classdef arrayDim < handle & matlab.mixin.Copyable
       % -------
       %  idxOut : Numeric reference to each requested dimension.
       %
+      idxIn = varargin;
+      %if ischar(idxIn), idxIn = {idxIn}; end;
+      
+      if numel(idxIn)>1
+        for i = 1:numel(idxIn)
+          idxOut(i) = obj.findDimensions(idxIn{i});
+        end
+        return;
+      end
+      
+      % Should only be one cell in varargin at this point.
+      idxIn = varargin{1};
       if ischar(idxIn), idxIn = {idxIn}; end;
+      
       if isnumeric(idxIn)
         % Numeric Dimension Indexing
-        assert(all(idxIn<numel(obj)), ...
+        assert(all(idxIn<=numel(obj)), ...
           'Index exceeds object dimensions');
         idxOut = idxIn;
       elseif iscell(idxIn)
@@ -723,19 +747,42 @@ classdef arrayDim < handle & matlab.mixin.Copyable
       %
       % function isConsistent = isMutuallyConsistent(obj,a,varargin)
       %
+      % The test for consistency between two sets of dimensions proceeeds
+      % as follows:
+      %
+      % Check that abs(numel(obj)-numel(a))<=nExtraDimsValid
+      %
+      % In this function, many fields are checked with the isEmptyOrEqual()
+      % function. This returns true if the fields are equal, or if one is
+      % empty.
+      %
+      % For each individual dimension:
+      %   1) Check isEmptyOrEqual(obj.dimName,a.dimName)
+      %   2) If either dimension is "Mostly Empty" (has only a name
+      %   defined), then they are consistent.
+      %   3) Check if one of the dimension sizes is 1, and bsxValid has
+      %   been set to true
+      %   4) Check that the dimension sizes match
+      %   5) If testStrict is TRUE, check equality or emptiness of
+      %   dimLabels, dimUnits, and dimValues.
+      %
       % Inputs
       % ------
-      %       obj :
-      %         a :
+      %       obj : Array of one or more arrayDim objects
+      %         a : Array of one or more arrayDim objects 
       %
       % Param-Value Inputs
       % ------------------
-      %   testStrict :
-      %   sizeMismatchValid: 
-      %   nameMismatchValid:
-      %   nExtraDimsValid:
-      %   sizeMismatchDim:
-      %  bsxValid :
+      %         testStrict :
+      %  sizeMismatchValid : 
+      %  nameMismatchValid :
+      %    nExtraDimsValid : Limit the number of additional dimensions allowed in
+      %                       either obj or b.
+      %                       DEFAULT: Inf
+      %    sizeMismatchDim : Dimension ind(ex/ices) along which a size
+      %                       mismatch is permitted. Typically allowed when
+      %                       concatenating arrays.
+      %           bsxValid : 
       %
       % Output
       % ------
@@ -762,6 +809,10 @@ classdef arrayDim < handle & matlab.mixin.Copyable
         end;
         
         % Compare Multiple Dimensions
+        %
+        % Loop across the smaller of obj or a. Check consistency of each
+        % individual dimension. All extra dimensions are considered valid
+        % and consistent.
         isConsistent = true;
         for idxDim = 1:min([numel(obj) numel(a)])
           isConsistent = isConsistent && ...
@@ -776,20 +827,19 @@ classdef arrayDim < handle & matlab.mixin.Copyable
         return;
       end;
       
-      %% Compare Single Dimension Below This Line            
-      if isMostlyEmpty(obj)||isMostlyEmpty(a)
-        % If one or the other is mostly empty (only a name assigned, if
-        % anything), then they are compatible.
-        isConsistent = isEmptyOrEqual(obj.dimName,a.dimName);        
-        return;
-      end;
-      
       if ~p.Results.nameMismatchValid
         % By default, check that the names match
         isConsistent = isEmptyOrEqual(obj.dimName,a.dimName);
         if ~isConsistent, return; end;
-      end;
+      end;      
       
+      %% Compare Single Dimension Below This Line            
+      if isMostlyEmpty(obj)||isMostlyEmpty(a)
+        % If one or the other is mostly empty (only a name assigned, if
+        % anything, and we've already checked that), then they are compatible.                
+        return;
+      end;
+           
       if p.Results.bsxValid
         % bsxfun can be applied if one of the dimension sizes is 1, or if
         % the dimensions otherwise match.
