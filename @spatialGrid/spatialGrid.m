@@ -3,18 +3,30 @@ classdef spatialGrid < handle & matlab.mixin.Copyable
   %
   % Group several arrayDims together to define a spatial grid in nD space
   %
-  % 
+  % Properties
+  % ----------
+  %    dimensions : arrayDim objects 
+  %   orientation : Image orientation (Typically left-posterior-superior)
+  %    directions : Directions of spatial bases in 3D space
+  %        center : 3D Center of the Grid
+  %     centering : 'Node' or 'Element'?
+  %        aspect : Aspect ratio of the grid
+  %       voxSize : 
+  %   boundingBox : Bounding box for the grid.
+  %
+  %
   
   properties (Dependent = true)
-    origin
     dimensions
-    directions
+    
     orientation
-    centering
-    voxSize
-    boundingBox
+    origin    
+    directions    
     center
+    centering
     aspect
+    voxSize
+    boundingBox        
   end
   
   properties (Access=protected)
@@ -25,11 +37,11 @@ classdef spatialGrid < handle & matlab.mixin.Copyable
     centering_ = 'cell';
   end;
   
-  
+
   methods
     
     function obj = spatialGrid(dimensions,varargin)
-      
+      if nargin>0
       if isa(dimensions,'spatialGrid')
         % Output copy of the input object
         obj = dimensions.copy;
@@ -60,7 +72,7 @@ classdef spatialGrid < handle & matlab.mixin.Copyable
       
       obj.orientation = p.Results.orientation;
       obj.centering = p.Results.centering;
-      
+      end;
     end
     
     %% Set/Get Dimensions
@@ -70,7 +82,7 @@ classdef spatialGrid < handle & matlab.mixin.Copyable
     
     function set.dimensions(obj,val)
       if isnumeric(val)&&isvector(val)
-        val = arrayDim('dimSize',num2cell(val));
+        val = arrayDim('dimSize',val);
       end;
       
       assert(isa(val,'arrayDim'),'Must specify dimensions using an arraydim');
@@ -84,6 +96,7 @@ classdef spatialGrid < handle & matlab.mixin.Copyable
       
       obj.dimensions_ = val;
     end;
+    
     
     %% Set/Get Origin
     %%%%%%%%%%%%%%%%%
@@ -144,9 +157,15 @@ classdef spatialGrid < handle & matlab.mixin.Copyable
       obj.centering_ = val;
     end;
     
+    %% Get Aspect
+    %%%%%%%%%%%%%
+    function out = get.aspect(obj)
+      out = sqrt(sum(obj.directions.^2,2));
+    end
+    
     %% Get Grid Points
     %%%%%%%%%%%%%%%%%%    
-    function pts = getGridPts(grid)
+    function varargout = getGridPts(grid)
       % Get location in nD space of each point in the grid
       %
       
@@ -161,6 +180,15 @@ classdef spatialGrid < handle & matlab.mixin.Copyable
       end;
       
       pts = pts*grid.directions' + grid.origin;
+      
+      switch nargout
+        case 1
+          varargout{1} = pts;
+        case size(pts,2)          
+          [varargout(1:nargout)] = mat2cell(pts,size(pts,1),ones(1,size(pts,2)));
+        otherwise
+          error('FOOERR');
+      end
       
     end
     

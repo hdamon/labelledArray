@@ -104,6 +104,8 @@ classdef arrayDim < handle & matlab.mixin.Copyable
       try
         assert(obj.isInternallyConsistent);
       catch
+        warning(['Aborting set of field: ' field]);
+        disp(lasterr);
         obj.(field) = oldVal;
       end
     end
@@ -593,7 +595,11 @@ classdef arrayDim < handle & matlab.mixin.Copyable
         return;
         
       elseif ischar(refIn)||iscellstr(refIn)
-        %% String IndexingA
+        %% String Indexing
+        if numel(refIn)==1&&isequal(refIn{1},':')
+          idxOut = ':';
+          return;
+        end;
         assert(isStringValid,'String indexing unavailable for this dimension');
         
         if ischar(refIn), refIn = {refIn}; end;
@@ -609,6 +615,7 @@ classdef arrayDim < handle & matlab.mixin.Copyable
           idxOut(idx) = tmp;
         end
       elseif iscell(refIn)
+        %% Value Based Indexing
         assert(isValueValid,'Value indexing unavailable for this dimension');
         
         if numel(refIn)==1
@@ -618,15 +625,22 @@ classdef arrayDim < handle & matlab.mixin.Copyable
         end;
         
         % Value Indexing
-        assert(numel(range)==2,'Value referencing must be done with range limits');
-                
-        [~,lowIdx] = min(abs(obj.dimValues-range(1)));
-        [~,highIdx] = min(abs(obj.dimValues-range(2)));
+        if numel(range)==1
+          [~,idxOut] = min(abs(obj.dimValues-range(1)));
+          
+        elseif numel(range)==2
+                    
+          [~,lowIdx] = min(abs(obj.dimValues-range(1)));
+          [~,highIdx] = min(abs(obj.dimValues-range(2)));
+          
+          assert(lowIdx<highIdx,'Poorly defined value range');
+          
+          idxOut = lowIdx:highIdx;
+          
+        else
+          error('Value indexing must be with either a single value, or a low/high range');
+        end;
         
-        assert(lowIdx<highIdx,'Poorly defined value range');
-        
-        idxOut = lowIdx:highIdx;
-                
         %error('Value indexing not yet implemented');
       else
         %% Otherwise, error.
@@ -814,7 +828,7 @@ classdef arrayDim < handle & matlab.mixin.Copyable
         % individual dimension. All extra dimensions are considered valid
         % and consistent.
         isConsistent = true;
-        for idxDim = 1:min([numel(obj) numel(a)])
+        for idxDim = 1:min([numel(obj) numel(a)])          
           isConsistent = isConsistent && ...
             isMutuallyConsistent(obj(idxDim),a(idxDim),...
             'bsxValid',p.Results.bsxValid,...
@@ -836,7 +850,8 @@ classdef arrayDim < handle & matlab.mixin.Copyable
       %% Compare Single Dimension Below This Line            
       if isMostlyEmpty(obj)||isMostlyEmpty(a)
         % If one or the other is mostly empty (only a name assigned, if
-        % anything, and we've already checked that), then they are compatible.                
+        % anything, and we've already checked that), then they are compatible.    
+        isConsistent = true;
         return;
       end;
            
@@ -892,7 +907,7 @@ classdef arrayDim < handle & matlab.mixin.Copyable
       end
       
       %% Single Object Below this Point    
-      if isequal(idx,':')
+      if ischar(idx)&&isequal(idx,':')
         % Do nothing if we're keeping the whole dimension
         return;
       end
@@ -992,9 +1007,9 @@ classdef arrayDim < handle & matlab.mixin.Copyable
       [dName,nameSize]    = convertToCell(Results.dimName,@iscell);
       [dSize,sizeSize]    = convertToCell(Results.dimSize,@iscell,true);
       [dLabels,labelSize] = convertToCell(Results.dimLabels,...
-        @(x) iscell(x)&&~iscellstr(x));
+                                            @(x) iscell(x)&&~iscellstr(x));
       [dUnits,unitSize]   = convertToCell(Results.dimUnits,...
-        @(x) iscell(x)&&~iscellstr(x));
+                                            @(x) iscell(x)&&~iscellstr(x));
       [dValues,valueSize] = convertToCell(Results.dimValues, @iscell);
       
       nOutput = max([1 nameSize sizeSize labelSize unitSize valueSize]);
