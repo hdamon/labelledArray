@@ -14,6 +14,8 @@ function varargout = subsref(obj,s)
 % Damon Hyde
 %
 
+%for i = 1:numel(s)
+
 switch s(1).type
   case '.'       
     if length(s)>1

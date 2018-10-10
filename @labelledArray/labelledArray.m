@@ -283,6 +283,8 @@ classdef labelledArray < handle & matlab.mixin.Copyable
           %tmp = size(obj.array);
           %out(1:numel(tmp)) = tmp;
         else
+          dim = obj.findDimensions(dim);
+          
           out = [obj.dimensions.dimSize];
           out = out(dim);
           
@@ -931,6 +933,7 @@ classdef labelledArray < handle & matlab.mixin.Copyable
       % Copy the object
       out = obj.copy;
       out.array_ = obj.array(dimIdx{:});
+      out.arrayRange_ = [];
       out.dimensions_ = newDims;
       
       if nargout==2
