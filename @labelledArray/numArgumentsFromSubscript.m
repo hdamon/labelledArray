@@ -2,9 +2,6 @@ function n = numArgumentsFromSubscript(obj,s,indexingContext)
 % For labelledArray class
 %
 
-n = builtin('numArgumentsFromSubscript',obj,s,indexingContext);
-return;
-
 % Default
 if ~iscell(s(1).subs)
   n = builtin('numArgumentsFromSubscript',obj,s,indexingContext);

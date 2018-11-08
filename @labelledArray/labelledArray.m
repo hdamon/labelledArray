@@ -182,10 +182,8 @@ classdef labelledArray < handle & matlab.mixin.Copyable
   end
   
   properties (Access=protected,Dependent)
-    % These properties were deprecated with the creation of the arrayDim
-    % object class. New functionality should access these values through
-    % obj.dimensions.<fieldName>
-    %
+    % These properties were deprecated with the creatin of the arrayDim
+    % object class. New functionality should access
     dimNames
     dimSize
     dimLabels
@@ -195,9 +193,9 @@ classdef labelledArray < handle & matlab.mixin.Copyable
   end
   
   properties (Access=protected) % Should possibly be private?
-    array_      % The array array    
+    array_      % The array array
+    dimensions_ % Dimension information
     arrayRange_ %
-    dimensions_ % Dimension information    
   end
   
   events
@@ -250,12 +248,7 @@ classdef labelledArray < handle & matlab.mixin.Copyable
     
     %% Overloaded Functions
     %%%%%%%%%%%%%%%%%%%%%%%
-    
-    %% Typecast to double
-    function out = double(obj)
-      out = double(obj.array_);
-    end
-    
+       
     %%
     function out = size(obj,dim)
       %% Return the size of a labelledArray object
@@ -272,25 +265,16 @@ classdef labelledArray < handle & matlab.mixin.Copyable
       % assigned for them.
       %
       if numel(obj)==1
-        if isempty(obj.dimensions)
-          out = [];
-          return;
-        end;
         if ~exist('dim','var')
-
-          out = [obj.dimensions.dimSize];
-          %out = ones(1,obj.ndims);
-          %tmp = size(obj.array);
-          %out(1:numel(tmp)) = tmp;
+          out = ones(1,obj.ndims);
+          tmp = size(obj.array);
+          out(1:numel(tmp)) = tmp;
         else
-          out = [obj.dimensions.dimSize];
-          out = out(dim);
-          
-          %out = size(obj.array,dim);
+          out = size(obj.array,dim);
         end;
       else        
-        if ~exist('dim','var')          
-          out = builtin('size',obj);
+        if ~exist('dim','var')
+          out = builtin('size',obj,dim);
         else
           out = builtin('size',obj,dim);
         end;
@@ -374,42 +358,24 @@ classdef labelledArray < handle & matlab.mixin.Copyable
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     
     function out = power(obj,b)
-      out = obj.applyFuncInPlace(@power,b);
-      
-      %out(i) = obj(i).copy;
-      %out(i).array_ = power(out(i).array_,b);      
-      
+      out = obj.copy;
+      out.array_ = power(out.array_,b);      
     end;
     
     function out = sqrt(obj)
-      out = obj.applyFuncInPlace(@sqrt);
-            
-      %out(i) = obj(i).copy;
-      %out.array_ = sqrt(out(i).array_);
-      
+      out = obj.copy;
+      out.array_ = sqrt(out.array_);
     end;
     
     function out = abs(obj)
-      out = obj.applyFuncInPlace(@abs);
-      %out = obj.copy;
-      %out.array_ = abs(out.array_);
+      out = obj.copy;
+      out.array_ = abs(out.array_);
     end    
-    
-    function out = applyFuncInPlace(obj,funcHandle,varargin)      
-        % For multiple objects, apply independently to each one.
-        for i = 1:numel(obj)
-          out(i) = obj(i).copy;
-          out(i).array_ = funcHandle(out(i).array,varargin{:});
-        end;
-        if numel(obj)>1
-        out = reshape(out,size(obj));
-        end;            
-    end
     
     %% Helper function for functions that collapse a dimension to a singleton
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     
-    function [out,varargout] = applyDimFunc(funcHandle,obj,idxDim,varargin)
+    function out = applyDimFunc(funcHandle,obj,idxDim,varargin)
       % Apply function handle that collapses a dimension to a singleton
       %
       % Inputs
@@ -428,25 +394,11 @@ classdef labelledArray < handle & matlab.mixin.Copyable
       %
       %
       
-      %% Iterate Across Multiple Object
-      if numel(obj)>1
-        for i = 1:numel(obj)
-          out(i) = applyDimFunc(funcHandle,obj(i),idxDim,varargin);
-        end
-        return;
-      end
-      
       dim = varargin{idxDim};
       dim = obj.findDimensions(dim); % Enable name based referencing
       varargin{idxDim} = dim;
       out = obj.copy;
-      if nargout==1
-        [out.array_]= funcHandle(obj.array_,varargin{:});      
-      else
-        outCell = cell(1,nargout-1);
-        [out.array_ ,outCell{:}] = funcHandle(obj.array_,varargin{:});
-        varargout = outCell;
-      end;
+      out.array_ = funcHandle(obj.array_,varargin{:});      
       
       if ~isempty(obj.dimValues{dim})
         newVal = mean(obj.dimValues{dim});
@@ -475,14 +427,14 @@ classdef labelledArray < handle & matlab.mixin.Copyable
       out = applyDimFunc(@sum,obj,1,dim);
     end;
     
-    function [out,I] = min(obj,~,dim)
+    function out = min(obj,~,dim)
       if ~exist('dim','var'), dim = 1; end;
-      [out,I] = applyDimFunc(@min,obj,2,[],dim);
+      out = applyDimFunc(@min,obj,2,[],dim);
     end;
     
-    function [out,I] = max(obj,~,dim)
+    function out = max(obj,~,dim)
       if ~exist('dim','var'), dim = 1; end;
-      [out,I] = applyDimFunc(@max,obj,2,[],dim);
+      out = applyDimFunc(@max,obj,2,[],dim);
     end;
     
     function out = mean(obj,dim)
@@ -581,13 +533,11 @@ classdef labelledArray < handle & matlab.mixin.Copyable
     %% dimensions get/set methods
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     function out = get.dimensions(obj)
-      %out = obj.dimensions_;
-      out = obj.getDimensions;
+      out = obj.dimensions_;
     end
     
     function set.dimensions(obj,val)
       obj.setDimensions(val);
-      
       %obj.dimensions_ = val;
       %assert(isInternallyConsistent(obj.dimensions_));
     end
@@ -600,8 +550,7 @@ classdef labelledArray < handle & matlab.mixin.Copyable
     end;
     
     function out = get.array(obj)
-      %out = obj.array_;
-      out = obj.getArray;
+      out = obj.array_;
     end;
     
     %% dimNames Get/Set Methods
@@ -945,10 +894,6 @@ classdef labelledArray < handle & matlab.mixin.Copyable
       assert(isInternallyConsistent(obj.dimensions_));
     end
     
-    function val = getDimensions(obj)
-      val = obj.dimensions_;
-    end;
-    
     %%
     function setArray(obj,val)
       % Overloadable set function for obj.array
@@ -1011,10 +956,6 @@ classdef labelledArray < handle & matlab.mixin.Copyable
         notify(obj,'updatedOut');
       end
     end
-    
-    function val = getArray(obj)
-      val = obj.array_;
-    end;
     
   end
   
