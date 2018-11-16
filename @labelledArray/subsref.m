@@ -35,7 +35,6 @@ switch s(1).type
         else
           [varargout{1:nargout}] = builtin('subsref',tmp,s(2:end));%{subsref(tmp,s(2:end))};
         end;
-
       end;
     else
       %disp(['Using builtin to access: ' s(1).subs]);

@@ -502,7 +502,36 @@ classdef labelledArray < handle & matlab.mixin.Copyable
       if ~exist('dim','var'), dim = 1; end;
       if ~exist('W','var'), W = 0; end;
       out = applyDimFunc(@var,obj,2,W,dim);
+    end;    
+    
+    function [out,I] = nanmin(obj,~,dim)
+      if ~exist('dim','var'), dim = 1; end;
+      [out,I] = applyDimFunc(@nanmin,obj,2,[],dim);
     end;
+    
+    function [out,I] = nanmax(obj,~,dim)
+      if ~exist('dim','var'), dim = 1; end;
+      [out,I] = applyDimFunc(@nanmax,obj,2,[],dim);
+    end;
+    
+    function out = nanmean(obj,dim)
+      if ~exist('dim','var'), dim = 1; end;
+      out = applyDimFunc(@nanmean,obj,1,dim);
+    end
+        
+    function out = nanstd(obj,W,dim)
+      if ~exist('dim','var'), dim = 1; end;
+      if ~exist('W','var'), W = 0; end;
+      out = applyDimFunc(@nanstd,obj,2,W,dim);
+    end
+    
+    function out = nanvar(obj,W,dim)
+      if ~exist('dim','var'), dim = 1; end;
+      if ~exist('W','var'), W = 0; end;
+      out = applyDimFunc(@nanvar,obj,2,W,dim);
+    end;     
+    
+
     
     %% Class-specific bsxfun function
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -582,16 +611,12 @@ classdef labelledArray < handle & matlab.mixin.Copyable
         
     %% dimensions get/set methods
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-    function out = get.dimensions(obj)
-      %out = obj.dimensions_;
+    function out = get.dimensions(obj)      
       out = obj.getDimensions;
     end
     
     function set.dimensions(obj,val)
-      obj.setDimensions(val);
-      
-      %obj.dimensions_ = val;
-      %assert(isInternallyConsistent(obj.dimensions_));
+      obj.setDimensions(val);      
     end
     
     %% array Get/Set Methods
@@ -601,8 +626,7 @@ classdef labelledArray < handle & matlab.mixin.Copyable
       obj.setArray(val);
     end;
     
-    function out = get.array(obj)
-      %out = obj.array_;
+    function out = get.array(obj)      
       out = obj.getArray;
     end;
     
@@ -927,6 +951,7 @@ classdef labelledArray < handle & matlab.mixin.Copyable
       % Input assertions
       assert(numel(obj)==1,'Subcopy must be called with a single labelledArray object');      
    
+      
       % Get New Dimensions and Indices
       [newDims,dimIdx] = obj.dimensions_.subselectDimensions(varargin{:});
       
@@ -946,6 +971,12 @@ classdef labelledArray < handle & matlab.mixin.Copyable
     function setDimensions(obj,val)      
       obj.dimensions_ = val;
       assert(isInternallyConsistent(obj.dimensions_));
+      if ~isempty(obj.array_)
+        sz = size(obj.array_);
+        s = size(obj);
+        assert(isequal(s(1:numel(sz)),sz),'Size mismatch A');
+        assert(all(s(numel(sz)+1:end)==1),'Size mismatch B');
+      end
     end
     
     function val = getDimensions(obj)
@@ -1002,10 +1033,11 @@ classdef labelledArray < handle & matlab.mixin.Copyable
               obj.dimensions(i).dimSize = size(val,i);
             else
               % Add a new dimension
+              %
               if isempty(obj.dimensions_)
-                obj.dimensions = arrayDim('dimSize',size(val,i));
+                obj.dimensions_ = arrayDim('dimSize',size(val,i));
               else
-                obj.dimensions(i) = arrayDim('dimSize',size(val,i));
+                obj.dimensions_(i) = arrayDim('dimSize',size(val,i));
               end;
             end
           else
