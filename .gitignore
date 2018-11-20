@@ -1,5 +1,6 @@
 External/*
 *~
+*.asv
 *.mexmaci64
 *.mexa64
 *.nhdr

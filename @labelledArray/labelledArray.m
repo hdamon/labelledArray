@@ -107,7 +107,7 @@ classdef labelledArray < handle & matlab.mixin.Copyable
   % --------------------------------------------
   %
   % Certain functions operate on data in place, and produce an output array 
-  % is the same size as the input. 
+  % that is the same size as the input. 
   %
   %   power:
   %
@@ -209,12 +209,15 @@ classdef labelledArray < handle & matlab.mixin.Copyable
     %%
     function obj = labelledArray(array,varargin)
       %% Main object constructor
-      if nargin>0
-        
-        if isa(array,'labelledArray')
-          obj = array.copy;
-          return;
-        end;
+      if nargin>0      
+%         if isa(array,'labelledArray')
+%           obj = array.copy;
+%           return;
+%           inputs = { array.array , 'dimNames', array.dimNames,...
+%                                    'dimLabels', array.dimLabels,...
+%         else
+%             inputs = varargin;
+%         end
                   
         checkType = @(x) iscell(x) && ((size(x,2)==2)||(numel(x)>=ndims(array)));
         
@@ -242,10 +245,8 @@ classdef labelledArray < handle & matlab.mixin.Copyable
           else
             error('Insufficient number of dimensions provided');
           end                         
-        end;
-        
-      end
-      
+        end
+      end   
     end
     
     %% Overloaded Functions
@@ -266,36 +267,32 @@ classdef labelledArray < handle & matlab.mixin.Copyable
       %  1) If obj is a single labelledArray object, returns the
       %				size of obj.array_
       %	 2) If obj is an array of labelledArray objects, returns the
-      %				size of the array.
+      %				size of the object array.
       %
       % Size will have trailing singleton dimensions if NLUV have been
       % assigned for them.
       %
       if numel(obj)==1
+        % Return size of individual object
         if isempty(obj.dimensions)
           out = [];
           return;
-        end;
+        end
         if ~exist('dim','var')
-
           out = [obj.dimensions.dimSize];
-          %out = ones(1,obj.ndims);
-          %tmp = size(obj.array);
-          %out(1:numel(tmp)) = tmp;
         else
           dim = obj.findDimensions(dim);
           
           out = [obj.dimensions.dimSize];
           out = out(dim);
-          
-          %out = size(obj.array,dim);
-        end;
-      else        
+        end
+      else    
+        % Return size of object array
         if ~exist('dim','var')          
           out = builtin('size',obj);
         else
           out = builtin('size',obj,dim);
-        end;
+        end
       end
     end
     
@@ -312,11 +309,16 @@ classdef labelledArray < handle & matlab.mixin.Copyable
         out = numel(obj.dimensions_);        
       else
         out = builtin('ndims',obj);
-      end;
+      end
     end
     
     function ind = end(obj,k,n)
-      ind = obj.size(k);
+      sz = obj.size;
+      if k<n
+        ind = sz(k);
+      else
+        ind = prod(sz(k:end));
+      end
     end
     
     %%
@@ -334,6 +336,7 @@ classdef labelledArray < handle & matlab.mixin.Copyable
       %								dimension dimNames.
       %
       
+      % Use findDimensions to allow name based reordering;
       newOrder = obj.findDimensions(varargin{:});
             
       out = obj.copy;
@@ -348,65 +351,57 @@ classdef labelledArray < handle & matlab.mixin.Copyable
       
       assert(isa(a,class(obj)),'Can only concatenate like objects');
       
-      % Build output object      
+      % Output starts with a copy of the input    
       out = obj.copy;
       
+      % Add extra empty dimensions as needed
       if numel(out.dimensions_)<dim
         out.dimensions_(dim) = arrayDim;
-      end;      
+      end      
       
+      % Perform Concatenations
       out.dimensions_ = cat(dim,out.dimensions_,a.dimensions_);
-      out.array_ = cat(dim,obj.array_,a.array_);
+      out.array_      = cat(dim,obj.array_,a.array_);
             
+      % Recursion for multiple object contatenation
       if ~isempty(varargin)        
         if numel(varargin)<5
+         % For short strings, use direct recursion
          out = cat(dim,out,varargin{:});
         else
-         % Split recursion when concatenating multiple objects          
+         % Split recursion for larger arrays of objects.          
          nSplit = ceil(numel(varargin)/2);                
          blockA = cat(dim,out,varargin{1:nSplit});
          blockB = cat(dim,varargin{(nSplit+1):end});        
          out = cat(dim,blockA,blockB);
-        end;
-      end;
-      
+        end
+      end     
     end
     
     %% Functions that always operate on the data in place
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    function out = applyFuncInPlace(obj,funcHandle,varargin)
+      % For multiple objects, apply independently to each one.
+      for i = 1:numel(obj)
+        out(i) = obj(i).copy;
+        out(i).array_ = funcHandle(out(i).array,varargin{:});
+      end
+      if numel(obj)>1
+        out = reshape(out,size(obj));
+      end
+    end  
     
     function out = power(obj,b)
       out = obj.applyFuncInPlace(@power,b);
-      
-      %out(i) = obj(i).copy;
-      %out(i).array_ = power(out(i).array_,b);      
-      
-    end;
+    end
     
     function out = sqrt(obj)
-      out = obj.applyFuncInPlace(@sqrt);
-            
-      %out(i) = obj(i).copy;
-      %out.array_ = sqrt(out(i).array_);
-      
-    end;
+      out = obj.applyFuncInPlace(@sqrt);  
+    end
     
     function out = abs(obj)
       out = obj.applyFuncInPlace(@abs);
-      %out = obj.copy;
-      %out.array_ = abs(out.array_);
     end    
-    
-    function out = applyFuncInPlace(obj,funcHandle,varargin)      
-        % For multiple objects, apply independently to each one.
-        for i = 1:numel(obj)
-          out(i) = obj(i).copy;
-          out(i).array_ = funcHandle(out(i).array,varargin{:});
-        end;
-        if numel(obj)>1
-        out = reshape(out,size(obj));
-        end;            
-    end
     
     %% Helper function for functions that collapse a dimension to a singleton
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -448,13 +443,13 @@ classdef labelledArray < handle & matlab.mixin.Copyable
         outCell = cell(1,nargout-1);
         [out.array_ ,outCell{:}] = funcHandle(obj.array_,varargin{:});
         varargout = outCell;
-      end;
-      
+      end
+     
       if ~isempty(obj.dimValues{dim})
         newVal = mean(obj.dimValues{dim});
       else
         newVal = [];
-      end;
+      end
       
       newName = obj.dimNames{dim};
       if isempty(obj.dimUnits{dim})
@@ -463,7 +458,7 @@ classdef labelledArray < handle & matlab.mixin.Copyable
         newUnits = [func2str(funcHandle) '(' out.dimUnits{dim} ')'];
       else
         newUnits = [func2str(funcHandle) '(' out.dimUnits{dim}{1} ')'];
-      end;
+      end
       newDim = arrayDim('dimName',newName,...
                         'dimUnits', newUnits,...
                         'dimValues', newVal);
@@ -473,66 +468,64 @@ classdef labelledArray < handle & matlab.mixin.Copyable
     %% Functions that use applyDimFunc
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     function out = sum(obj,dim)
-      if ~exist('dim','var'),dim = 1; end;
+      if ~exist('dim','var'),dim = 1; end
       out = applyDimFunc(@sum,obj,1,dim);
-    end;
+    end
     
     function [out,I] = min(obj,~,dim)
-      if ~exist('dim','var'), dim = 1; end;
+      if ~exist('dim','var'), dim = 1; end
       [out,I] = applyDimFunc(@min,obj,2,[],dim);
-    end;
+    end
     
     function [out,I] = max(obj,~,dim)
-      if ~exist('dim','var'), dim = 1; end;
+      if ~exist('dim','var'), dim = 1; end
       [out,I] = applyDimFunc(@max,obj,2,[],dim);
-    end;
+    end
     
     function out = mean(obj,dim)
-      if ~exist('dim','var'), dim = 1; end;
+      if ~exist('dim','var'), dim = 1; end
       out = applyDimFunc(@mean,obj,1,dim);
     end
     
     function out = std(obj,W,dim)
-      if ~exist('dim','var'), dim = 1; end;
-      if ~exist('W','var'), W = 0; end;
+      if ~exist('dim','var'), dim = 1; end
+      if ~exist('W','var'), W = 0; end
       out = applyDimFunc(@std,obj,2,W,dim);
     end
     
     function out = var(obj,W,dim)
-      if ~exist('dim','var'), dim = 1; end;
-      if ~exist('W','var'), W = 0; end;
+      if ~exist('dim','var'), dim = 1; end
+      if ~exist('W','var'), W = 0; end
       out = applyDimFunc(@var,obj,2,W,dim);
-    end;    
+    end    
     
     function [out,I] = nanmin(obj,~,dim)
-      if ~exist('dim','var'), dim = 1; end;
+      if ~exist('dim','var'), dim = 1; end
       [out,I] = applyDimFunc(@nanmin,obj,2,[],dim);
-    end;
+    end
     
     function [out,I] = nanmax(obj,~,dim)
-      if ~exist('dim','var'), dim = 1; end;
+      if ~exist('dim','var'), dim = 1; end
       [out,I] = applyDimFunc(@nanmax,obj,2,[],dim);
-    end;
+    end
     
     function out = nanmean(obj,dim)
-      if ~exist('dim','var'), dim = 1; end;
+      if ~exist('dim','var'), dim = 1; end
       out = applyDimFunc(@nanmean,obj,1,dim);
     end
         
     function out = nanstd(obj,W,dim)
-      if ~exist('dim','var'), dim = 1; end;
-      if ~exist('W','var'), W = 0; end;
+      if ~exist('dim','var'), dim = 1; end
+      if ~exist('W','var'), W = 0; end
       out = applyDimFunc(@nanstd,obj,2,W,dim);
     end
     
     function out = nanvar(obj,W,dim)
-      if ~exist('dim','var'), dim = 1; end;
-      if ~exist('W','var'), W = 0; end;
+      if ~exist('dim','var'), dim = 1; end
+      if ~exist('W','var'), W = 0; end
       out = applyDimFunc(@nanvar,obj,2,W,dim);
-    end;     
-    
-
-    
+    end     
+       
     %% Class-specific bsxfun function
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     function objOut = bsxfun(funcHandle,obj,b)
@@ -981,7 +974,7 @@ classdef labelledArray < handle & matlab.mixin.Copyable
     
     function val = getDimensions(obj)
       val = obj.dimensions_;
-    end;
+    end
     
     %%
     function setArray(obj,val)
@@ -995,6 +988,8 @@ classdef labelledArray < handle & matlab.mixin.Copyable
       %
       %
       
+      % Check that input array size matches the current dimension
+      % definitions.
       if ~isempty(obj.array_)&&~isempty(val)
         % Check Overall Dimensionality
        
@@ -1003,15 +998,13 @@ classdef labelledArray < handle & matlab.mixin.Copyable
                 
         % Check Individual Dimension Sizes
         for idxDim = 1:maxDims
-          
-          if idxDim<=dimsIn
-          
-           dimSize = size(val,idxDim);
-          
-           if ( dimSize ~= size(obj.array_,idxDim) )
+          if idxDim<=dimsIn          
+           if ( size(val,idxDim) ~= size(obj.array_,idxDim) )
              error(['Input array does not match current size on dimension: ' num2str(idxDim)]);
            end
           else
+            % Additional dimensions must either be single-element, or
+            % undefined (returns size of zero?)
             assert(obj.size(idxDim)==1,...
                ['Input array does not match current size on dimension: ' num2str(idxDim)]);
           end
@@ -1030,6 +1023,7 @@ classdef labelledArray < handle & matlab.mixin.Copyable
         for i = 1:ndims(val)
           if ~isempty(val)
             if i<=numel(obj.dimensions_)
+              % This is likely unnecessary?
               obj.dimensions(i).dimSize = size(val,i);
             else
               % Add a new dimension
@@ -1038,18 +1032,18 @@ classdef labelledArray < handle & matlab.mixin.Copyable
                 obj.dimensions_ = arrayDim('dimSize',size(val,i));
               else
                 obj.dimensions_(i) = arrayDim('dimSize',size(val,i));
-              end;
+              end
             end
           else
           end
-        end;
+        end
         notify(obj,'updatedOut');
       end
     end
     
     function val = getArray(obj)
       val = obj.array_;
-    end;
+    end
     
   end
   
