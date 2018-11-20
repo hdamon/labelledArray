@@ -1031,13 +1031,10 @@ classdef labelledArray < handle & matlab.mixin.Copyable
       end
     end
     
-<<<<<<< HEAD
-=======
     function val = getArray(obj)
       val = obj.array_;
     end
     
->>>>>>> stash
   end
   
   

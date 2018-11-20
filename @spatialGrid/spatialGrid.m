@@ -23,7 +23,7 @@ classdef spatialGrid < handle & matlab.mixin.Copyable
     dimensions_
     orientation_ = 'Left-Posterior-Superior';
     centering_ = 'cell';
-  end;
+  end
   
   
   methods
@@ -34,7 +34,7 @@ classdef spatialGrid < handle & matlab.mixin.Copyable
         % Output copy of the input object
         obj = dimensions.copy;
         return;
-      end;
+      end
       
       obj.dimensions = dimensions;
       
@@ -50,7 +50,7 @@ classdef spatialGrid < handle & matlab.mixin.Copyable
         obj.origin_ = zeros(1,numel(obj.dimensions));
       else        
         obj.origin = p.Results.origin;
-      end;
+      end
       
       if isempty(p.Results.directions)
         obj.directions_ = eye(numel(obj.dimensions));
@@ -66,12 +66,12 @@ classdef spatialGrid < handle & matlab.mixin.Copyable
     %% Set/Get Dimensions
     function val = get.dimensions(obj)
       val = obj.dimensions_;
-    end;
+    end
     
     function set.dimensions(obj,val)
       if isnumeric(val)&&isvector(val)
         val = arrayDim('dimSize',num2cell(val));
-      end;
+      end
       
       assert(isa(val,'arrayDim'),'Must specify dimensions using an arraydim');
       
@@ -79,24 +79,24 @@ classdef spatialGrid < handle & matlab.mixin.Copyable
       for i = 1:numel(val)
         if isempty(val(i).dimValues)
           val(i).dimValues = 1:val(i).dimSize;
-        end;
+        end
       end
       
       obj.dimensions_ = val;
-    end;
+    end
     
     %% Set/Get Origin
     %%%%%%%%%%%%%%%%%
     function val = get.origin(obj)
       val = obj.origin_;
-    end;
+    end
     
     function set.origin(obj,val)
       assert(isnumeric(val)&&isvector(val)&&...
                 (numel(val)==numel(obj.dimensions)),...
                 'Origin size must match number of dimensions');      
       obj.origin_ = val;
-    end;
+    end
     
     function set.origin_(obj,val)      
       obj.origin_ = val(:)';
@@ -143,6 +143,12 @@ classdef spatialGrid < handle & matlab.mixin.Copyable
     function set.centering(obj,val)
       obj.centering_ = val;
     end;
+    
+    %% Get Aspect
+    %%%%%%%%%%%%%
+    function out = get.aspect(obj)
+      out = sqrt(sum(obj.directions.^2,1));
+    end    
     
     %% Get Grid Points
     %%%%%%%%%%%%%%%%%%    
