@@ -33,7 +33,7 @@ classdef arrayDim < handle & matlab.mixin.Copyable
   properties (Dependent, Hidden=true)
     % fixedSize is largely deprecated?
     fixedSize;
-  end;
+  end
      
   properties (Access=private)
     %% Actual values are stored in private properties     
@@ -51,10 +51,22 @@ classdef arrayDim < handle & matlab.mixin.Copyable
     function obj = arrayDim(varargin)
       %% Class constructor
       if nargin>0
+          
         if isa(varargin{1},'arrayDim')
-          % Return a copy of the input object
-          obj = varargin{1}.copy;
-          return;
+            % Typecasting for subclasses
+%           % Return a copy of the input object
+%           obj = varargin{1}.copy;
+%           return;
+          
+          % Copy values from object array
+          obj(numel(varargin{1})) = arrayDim;
+          for i = 1:numel(varargin{1})
+              obj(i) = arrayDim('dimName',varargin{1}(i).dimName,...
+                                'dimSize',varargin{1}(i).dimSize,...
+                                'dimLabels',varargin{1}(i).dimLabels,...
+                                'dimUnits',varargin{1}(i).dimUnits,...
+                                'dimValues',varargin{1}(i).dimValues);
+          end
         end
         
         %% Input Parsing
@@ -83,9 +95,9 @@ classdef arrayDim < handle & matlab.mixin.Copyable
               'dimLabels', parsed.dLabels{i} , ...
               'dimUnits' , parsed.dUnits{i}  , ...
               'dimValues', parsed.dValues{i} );
-          end;
+          end
           return;
-        end;
+        end
         
         %% Construct Single Object
         obj.dimSize   = parsed.dSize{1};
@@ -94,8 +106,8 @@ classdef arrayDim < handle & matlab.mixin.Copyable
         obj.dimUnits  = parsed.dUnits{1};
         obj.dimValues = parsed.dValues{1};
         
-      end;
-    end; % END Constructor
+      end
+    end % END Constructor
         
     function trySet(obj,field,val)
       % Make sure fields aren't overwritten unless successful
@@ -112,7 +124,7 @@ classdef arrayDim < handle & matlab.mixin.Copyable
     %%%%%%%%%%%%%%%%%%%%%%
     function name = get.dimName(obj)
       name = obj.dimName_;
-    end;
+    end
     
     function set.dimName(obj,val)
       obj.trySet('dimName_',val);      
@@ -121,7 +133,7 @@ classdef arrayDim < handle & matlab.mixin.Copyable
     function set.dimName_(obj,val)
       assert(isempty(val)||ischar(val),'Dimension name must be a character string');
       obj.dimName_ = val;
-    end;
+    end
     
     %% Get/Set obj.dimSize and related properties
     %%%%%%%%%%%%%%%%%%%%%%
@@ -144,7 +156,7 @@ classdef arrayDim < handle & matlab.mixin.Copyable
         isFixed = false;
       else
         isFixed = true;
-      end;
+      end
     end
     
     function sizeOut = get.dimSize(obj)
@@ -160,17 +172,17 @@ classdef arrayDim < handle & matlab.mixin.Copyable
           nLabels = 1;
         else
           nLabels = numel(obj.dimLabels);
-        end;
+        end
         if ischar(obj.dimUnits)
           nUnits = 1;
         else
           nUnits  = numel(obj.dimUnits);
-        end;
+        end
         nValues = numel(obj.dimValues);
         sizeOut = max([nLabels nUnits nValues 1]);
       else
         sizeOut = obj.dimSize_;
-      end;
+      end
     end
     
     function set.dimSize(obj,val)
@@ -187,13 +199,13 @@ classdef arrayDim < handle & matlab.mixin.Copyable
     %%%%%%%%%%%%%%%%%%%%%%%%
     function labels = get.dimLabels(obj)
       labels = obj.dimLabels_;
-    end;
+    end
     
     function set.dimLabels(obj,val)
       obj.trySet('dimLabels_',val);
       %obj.dimLabels_ = val;
       %assert(obj.isInternallyConsistent);
-    end;
+    end
     
     function set.dimLabels_(obj,val)
       % dimLabels_ can be:
@@ -206,7 +218,7 @@ classdef arrayDim < handle & matlab.mixin.Copyable
       assert(isempty(val)||(iscellstr(val)&&isvector(val)),...
         'Dimension labels must be a single dimensional cellstr');
       obj.dimLabels_ = val;
-    end;
+    end
     
     %% Get/Set obj.dimUnits
     %%%%%%%%%%%%%%%%%%%%%%%
@@ -228,11 +240,11 @@ classdef arrayDim < handle & matlab.mixin.Copyable
       %
       if (size(val,1)>1)
         val = val';
-      end;
+      end
       assert(isempty(val)||ischar(val)||(iscellstr(val)&&isvector(val)),...
         'Dimension units must be a row vector');
       obj.dimUnits_ = val;
-    end;
+    end
     
     %% Get/Set obj.dimValues
     %%%%%%%%%%%%%%%%%%%%%%%%
@@ -244,12 +256,12 @@ classdef arrayDim < handle & matlab.mixin.Copyable
       obj.trySet('dimValues_',val);
       %obj.dimValues_ = val(:)';
       %assert(obj.isInternallyConsistent);
-    end;
+    end
     
     function set.dimValues_(obj,val)
       if size(val,1)>1
         val = val';
-      end;
+      end
       assert(isempty(val)||isvector(val),...
         'Dimension values must be a row vector');
       obj.dimValues_ = val;
@@ -260,7 +272,7 @@ classdef arrayDim < handle & matlab.mixin.Copyable
         out = [obj.dimValues_(1) obj.dimValues_(end)];
       else
         out = [];
-      end;
+      end
     end
     
     %% Overloaded Functions
@@ -272,17 +284,17 @@ classdef arrayDim < handle & matlab.mixin.Copyable
         isEqual = false;
         warning('Dimensionality mismatch');
         return;
-      end;
+      end
       
       %% Recurse for multiple dimensions
       if numel(obj)>1
         isEqual = true;
         for i = 1:numel(obj)
           isEqual = isEqual && isequal(obj(i),a(i));
-          if ~isEqual, break;	end;
+          if ~isEqual, break;	end
         end
         return;
-      end;
+      end
       
       %% Check an individual dimension
       
@@ -309,9 +321,9 @@ classdef arrayDim < handle & matlab.mixin.Copyable
       if ~(isequal(obj.dimValues,a.dimValues))
         isEqual = false;
         warning(['Dimension value mismatch in dimension:' num2str(i)]);
-      end;
+      end
       
-    end; % END isEqual()
+    end % END isEqual()
     
     function isEmpty = isempty(obj)
       % Check if fully empty
@@ -384,7 +396,7 @@ classdef arrayDim < handle & matlab.mixin.Copyable
             % Copy the name for the concatenated dimension
             if i<=numel(objB)
              objOut(i).dimName = objB(i).dimName;
-            end;
+            end
           end
         end
       end
@@ -392,7 +404,7 @@ classdef arrayDim < handle & matlab.mixin.Copyable
       if isMostlyEmpty(objA(dim))
         if  dim <=numel(objB)
           objOut(dim) = objB(dim).copy;
-        end;
+        end
       elseif isMostlyEmpty(objB(dim))
         % Do Nothing
       else      
@@ -417,7 +429,7 @@ classdef arrayDim < handle & matlab.mixin.Copyable
         else
           % Clear if both aren't explicitly defined.
           newSize = [];
-        end;
+        end
       end
       
       function newLabels = catLabels
@@ -428,11 +440,11 @@ classdef arrayDim < handle & matlab.mixin.Copyable
         if isempty(labelsA)&&~isempty(labelsB)
           tmp(1:objA(dim).dimSize) = {''};
           labelsA = tmp;
-        end;
+        end
         if isempty(labelsB)&&~isempty(labelsA)
           tmp(1:objB(dim).dimSize) = {''};
           labelsB = tmp;
-        end;
+        end
         newLabels = cat(2,labelsA,labelsB);
       end
       
@@ -505,16 +517,16 @@ classdef arrayDim < handle & matlab.mixin.Copyable
       %
       %
       idx = objIn.getIndexIntoDimensions(varargin{:});
-      if ~iscell(idx), idx = {idx}; end;
+      if ~iscell(idx), idx = {idx}; end
       
       objOut = objIn.copy;
       for idxDim = 1:numel(objOut)
         objOut(idxDim) = objOut(idxDim).subcopy(idx{idxDim});
-      end;
+      end
       
       if nargout>1
         varargout{1} = idx;
-      end;
+      end
     end
     
     
@@ -551,7 +563,7 @@ classdef arrayDim < handle & matlab.mixin.Copyable
           else
             % Use ':' indexing if not all dimensions specified.
             idxOut(idxDim) = {obj(idxDim).getIndexIntoDimensions(':')};
-          end;
+          end
         end
         return;
       end
@@ -565,11 +577,11 @@ classdef arrayDim < handle & matlab.mixin.Copyable
       
       % String referencing is valid if dimension labels are assigned
       isStringValid = true;
-      if isempty(obj.dimLabels),  isStringValid = false;  end;
+      if isempty(obj.dimLabels),  isStringValid = false;  end
       
       % Value referencing is valid if values are assigned
       isValueValid = true; % Turned off for now
-      if isempty(obj.dimValues), isValueValid = false; end;
+      if isempty(obj.dimValues), isValueValid = false; end
       
       %% Select According to Reference Type and Find Correct Numeric Indices
       if isequal(refIn,':')
@@ -588,15 +600,21 @@ classdef arrayDim < handle & matlab.mixin.Copyable
         %% Numeric Indexing
         if any(refIn<1)||any(refIn>obj.dimSize)
           error('Requested index outside of available range');
-        end;
+        end
         idxOut = refIn;
         return;
         
       elseif ischar(refIn)||iscellstr(refIn)
-        %% String IndexingA
+
+        %% String Indexing
+        if numel(refIn)==1&&isequal(refIn{1},':')
+          idxOut = ':';
+          return;
+        end
+
         assert(isStringValid,'String indexing unavailable for this dimension');
         
-        if ischar(refIn), refIn = {refIn}; end;
+        if ischar(refIn), refIn = {refIn}; end
         cellIn = strtrim(obj.dimLabels);
         refIn = strtrim(refIn);
         idxOut = zeros(1,numel(refIn));
@@ -604,7 +622,7 @@ classdef arrayDim < handle & matlab.mixin.Copyable
           tmp = find(strcmp(refIn{idx},cellIn));
           if isempty(tmp)
             error('Requested string does not appear in cell array');
-          end;
+          end
           assert(numel(tmp)==1,'Multiple string matches in cellIn');
           idxOut(idx) = tmp;
         end
@@ -615,13 +633,25 @@ classdef arrayDim < handle & matlab.mixin.Copyable
           range = refIn{1};
         else
           range = [refIn{1} refIn{2}];
-        end;
+        end
         
         % Value Indexing
-        assert(numel(range)==2,'Value referencing must be done with range limits');
-                
-        [~,lowIdx] = min(abs(obj.dimValues-range(1)));
-        [~,highIdx] = min(abs(obj.dimValues-range(2)));
+
+        if numel(range)==1
+          [~,idxOut] = min(abs(obj.dimValues-range(1)));
+          
+        elseif numel(range)==2
+                    
+          [~,lowIdx] = min(abs(obj.dimValues-range(1)));
+          [~,highIdx] = min(abs(obj.dimValues-range(2)));
+          
+          assert(lowIdx<highIdx,'Poorly defined value range');
+          
+          idxOut = lowIdx:highIdx;
+          
+        else
+          error('Value indexing must be with either a single value, or a low/high range');
+        end
         
         assert(lowIdx<highIdx,'Poorly defined value range');
         
@@ -631,7 +661,7 @@ classdef arrayDim < handle & matlab.mixin.Copyable
       else
         %% Otherwise, error.
         error('Incorrect reference type');
-      end;            
+      end           
     end
         
     function idxOut = findDimensions(obj,varargin)
@@ -664,7 +694,7 @@ classdef arrayDim < handle & matlab.mixin.Copyable
       
       % Should only be one cell in varargin at this point.
       idxIn = varargin{1};
-      if ischar(idxIn), idxIn = {idxIn}; end;
+      if ischar(idxIn), idxIn = {idxIn}; end
       
       if isnumeric(idxIn)
         % Numeric Dimension Indexing
@@ -686,19 +716,19 @@ classdef arrayDim < handle & matlab.mixin.Copyable
             validNames = validNames(~cellfun(@isempty,validNames));
             if isempty(validNames)
               error('Name indexing unavailable');
-            end;
+            end
             inName = validatestring(idxIn{i},validNames);
             
             matched = cellfun(@(x) isequal(x,inName),{obj.dimName});
             idxOut(i) = find(matched);
           else
             error('Invalid dimension reference');
-          end;
+          end
         end
       else
         error('Invalid dimension referencing');
       end
-    end;
+    end
     
     function [dimOut] = getConsistentDimensions(obj,a)
       % Get a new set of mutually consistent dimensions
@@ -726,7 +756,7 @@ classdef arrayDim < handle & matlab.mixin.Copyable
           dimOut = obj.copy;
         else
           dimOut = a.copy;
-        end;
+        end
       else
         dimOut(nDimsOut) = arrayDim;
         for i = 1:nDimsOut
@@ -736,7 +766,7 @@ classdef arrayDim < handle & matlab.mixin.Copyable
             dimOut(i) = obj(i).copy;
           else
             dimOut(i) = getConsistentDimensions(obj(i),a(i));
-          end;
+          end
         end
       end
       
@@ -805,8 +835,8 @@ classdef arrayDim < handle & matlab.mixin.Copyable
         if ~isempty(p.Results.nExtraDimsValid)
           % Limit the difference in the number of extra dimensions
           isConsistent = abs(numel(obj)-numel(a))<=p.Results.nExtraDimsValid;
-          if ~isConsistent, return; end;
-        end;
+          if ~isConsistent, return; end
+        end
         
         % Compare Multiple Dimensions
         %
@@ -822,30 +852,30 @@ classdef arrayDim < handle & matlab.mixin.Copyable
             'nameMismatchValid',p.Results.nameMismatchValid,...
             'sizeMismatchValid',...
             ismember(idxDim,p.Results.sizeMismatchDim));
-          if ~isConsistent, break; end;
-        end;
+          if ~isConsistent, break; end
+        end
         return;
-      end;
+      end
       
       if ~p.Results.nameMismatchValid
         % By default, check that the names match
         isConsistent = isEmptyOrEqual(obj.dimName,a.dimName);
-        if ~isConsistent, return; end;
-      end;      
+        if ~isConsistent, return; end
+      end      
       
       %% Compare Single Dimension Below This Line            
       if isMostlyEmpty(obj)||isMostlyEmpty(a)
         % If one or the other is mostly empty (only a name assigned, if
         % anything, and we've already checked that), then they are compatible.                
         return;
-      end;
+      end
            
       if p.Results.bsxValid
         % bsxfun can be applied if one of the dimension sizes is 1, or if
         % the dimensions otherwise match.
         isConsistent = xor((obj.dimSize==1),(a.dimSize==1));
-        if isConsistent, return; end;
-      end;
+        if isConsistent, return; end
+      end
       
       if p.Results.sizeMismatchValid&&p.Results.testStrict
         % If mismatched sizes are valid, just want to check the
@@ -857,13 +887,13 @@ classdef arrayDim < handle & matlab.mixin.Copyable
       
       % Size Must be Equal
       isConsistent = false;
-      if ~isequal(obj.dimSize,a.dimSize), return; end;
+      if ~isequal(obj.dimSize,a.dimSize), return; end
       % Strict Testing
       if p.Results.testStrict
-        if ~isEmptyOrEqual(obj.dimLabels,a.dimLabels), return; end;
-        if ~isEmptyOrEqual(obj.dimUnits, a.dimUnits),  return; end;
-        if ~isEmptyOrEqual(obj.dimValues,a.dimValues), return; end;
-      end;
+        if ~isEmptyOrEqual(obj.dimLabels,a.dimLabels), return; end
+        if ~isEmptyOrEqual(obj.dimUnits, a.dimUnits),  return; end
+        if ~isEmptyOrEqual(obj.dimValues,a.dimValues), return; end
+      end
       isConsistent = true;
             
       function isValid = isEmptyOrEqual(A,B)
@@ -915,7 +945,7 @@ classdef arrayDim < handle & matlab.mixin.Copyable
       
       if nargout>=2
         varargout{1} = idx;
-      end;
+      end
       
       assert(objOut.isInternallyConsistent);
     end
@@ -1007,11 +1037,11 @@ classdef arrayDim < handle & matlab.mixin.Copyable
       
       function [cellOut, size] = convertToCell(input,checkFHandle,expand)
         % Convert input into correct cell form
-        if ~exist('expand','var'),expand = false; end;
+        if ~exist('expand','var'),expand = false; end
         
         if expand
           input = num2cell(input);
-        end;
+        end
         
         if checkFHandle(input)
           size = numel(input);
@@ -1019,7 +1049,7 @@ classdef arrayDim < handle & matlab.mixin.Copyable
         else
           size = 1;
           cellOut = {input};
-        end;
+        end
       end
       
       function cellOut = validateCell(cellIn, nOutput)
@@ -1031,7 +1061,7 @@ classdef arrayDim < handle & matlab.mixin.Copyable
           cellOut = cell(nOutput,1);
         else
           cellOut = cellIn;
-        end;
+        end
       end
       
     end

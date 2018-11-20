@@ -2,6 +2,8 @@ function varargout = subsref(obj,s)
 % subsref method for labelledArray objects
 %
 
+%for i = 1:numel(s)
+
 switch s(1).type
   case '.'       
     if length(s)>1
@@ -21,7 +23,6 @@ switch s(1).type
         else
           [varargout{1:nargout}] = builtin('subsref',tmp,s(2:end));%{subsref(tmp,s(2:end))};
         end;
-
       end;
     else
       %disp(['Using builtin to access: ' s(1).subs]);
