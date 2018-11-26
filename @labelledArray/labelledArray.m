@@ -1036,7 +1036,7 @@ classdef labelledArray < handle & matlab.mixin.Copyable
         notify(obj,'updatedOut');
       end
     end
-    
+
     function val = getArray(obj)
       val = obj.array_;
     end
