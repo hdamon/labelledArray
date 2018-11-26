@@ -176,14 +176,19 @@ classdef labelledArray < handle & matlab.mixin.Copyable
   %
   
   properties (Hidden,Dependent)
+    % These properties are hidden to allow redefinition/mapping in subclasses
+    % without cluttering things. 
     array
     arrayRange
     dimensions
   end
   
   properties (Access=protected,Dependent)
-    % These properties were deprecated with the creatin of the arrayDim
-    % object class. New functionality should access
+    % These properties were deprecated with the creation of the arrayDim
+    % object class. New functionality should access the obj.dimensions
+    % field directly. They'll remain available until all such references
+    % can be cleared from library code, but shouldn't be relied on in the
+    % future.
     dimNames
     dimSize
     dimLabels
@@ -193,6 +198,7 @@ classdef labelledArray < handle & matlab.mixin.Copyable
   end
   
   properties (Access=protected) % Should possibly be private?
+    % Protected properties are used for actual storage of the object's data.
     array_      % The array array
     dimensions_ % Dimension information
     arrayRange_ %
@@ -207,15 +213,15 @@ classdef labelledArray < handle & matlab.mixin.Copyable
     %%
     function obj = labelledArray(array,varargin)
       %% Main object constructor
-      if nargin>0      
-%         if isa(array,'labelledArray')
-%           obj = array.copy;
-%           return;
-%           inputs = { array.array , 'dimNames', array.dimNames,...
-%                                    'dimLabels', array.dimLabels,...
-%         else
-%             inputs = varargin;
-%         end
+      if nargin>0     
+        
+        % Typecasting for subclassed objects.
+        if isa(array,'labelledArray')
+          % Just copy the array and dimension information from the input.
+          obj.array_      = array.array_;
+          obj.dimensions_ = array.dimensions_;
+          return;
+        end
                   
         checkType = @(x) iscell(x) && ((size(x,2)==2)||(numel(x)>=ndims(array)));
         
@@ -376,6 +382,7 @@ classdef labelledArray < handle & matlab.mixin.Copyable
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     function out = applyFuncInPlace(obj,funcHandle,varargin)
       % For multiple objects, apply independently to each one.
+      out(numel(obj)) = labelledArray.empty;
       for i = 1:numel(obj)
         out(i) = obj(i).copy;
         out(i).array_ = funcHandle(out(i).array,varargin{:});
@@ -400,7 +407,7 @@ classdef labelledArray < handle & matlab.mixin.Copyable
     %% Helper function for functions that collapse a dimension to a singleton
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     
-    function out = applyDimFunc(funcHandle,obj,idxDim,varargin)
+    function [out, varargout] = applyDimFunc(funcHandle,obj,idxDim,varargin)
       % Apply function handle that collapses a dimension to a singleton
       %
       % Inputs
@@ -432,7 +439,6 @@ classdef labelledArray < handle & matlab.mixin.Copyable
         varargout = outCell;
       end
      
-
       if ~isempty(obj.dimValues{dim})
         newVal = mean(obj.dimValues{dim});
       else
@@ -555,18 +561,18 @@ classdef labelledArray < handle & matlab.mixin.Copyable
           coeff = b;
           % New dimensions need to be handled better here
           dimsOut = obj.dimensions;          
-        end;
+        end
         
         objOut(idxObj) = copy(obj(idxObj));
         objOut(idxObj).array_ = bsxfun(funcHandle,obj(idxObj).array,coeff);
         objOut(idxObj).arrayRange_ = [];
         objOut(idxObj).dimensions_ = dimsOut;        
-      end;
+      end
       
       %% Reshape if its an array of objects
       if numel(objOut)>1
         objOut = reshape(objOut,size(obj));
-      end;
+      end
     end
     
     %% Functions that use bsxfun
@@ -589,7 +595,7 @@ classdef labelledArray < handle & matlab.mixin.Copyable
     
     function out = times(obj,b)
       out = bsxfun(@times,obj,b);
-    end;    
+    end   
         
     %% dimensions get/set methods
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -607,11 +613,11 @@ classdef labelledArray < handle & matlab.mixin.Copyable
     function set.array(obj,val)
       % Done this way so it can be overloaded by subclasses.
       obj.setArray(val);
-    end;
+    end
     
     function out = get.array(obj)      
       out = obj.getArray;
-    end;
+    end
     
     %% dimNames Get/Set Methods
     %%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -619,7 +625,7 @@ classdef labelledArray < handle & matlab.mixin.Copyable
       if iscellstr(val)
         for idxDim = 1:numel(val)
           obj.dimensions_(idxDim).dimName = val{idxDim};
-        end;
+        end
         return;
       end
       obj.dimensions_.dimName = val;      
@@ -627,7 +633,7 @@ classdef labelledArray < handle & matlab.mixin.Copyable
     
     function out = get.dimNames(obj)
       out = {obj.dimensions_.dimName};      
-    end;
+    end
     
     function set.dimSize(obj,val)     
         assert(numel(val)==numel(obj.dimensions_),...
@@ -639,11 +645,11 @@ classdef labelledArray < handle & matlab.mixin.Copyable
     
     function out = get.dimSize(obj)
       out = [obj.dimensions_.dimSize];
-    end;
+    end
     
     function out = get.dimRange(obj)
       out = {obj.dimensions_.dimRange};
-    end;
+    end
     
     
     %% dimLabels Get/Set Methods
@@ -652,7 +658,7 @@ classdef labelledArray < handle & matlab.mixin.Copyable
       if iscell(val)&&~iscellstr(val)
         for idxDim = 1:numel(val)
           obj.dimensions_(idxDim).dimLabels = val{idxDim};
-        end;
+        end
         return;
       end
       obj.dimensions_.dimLabels = val;      
@@ -661,7 +667,7 @@ classdef labelledArray < handle & matlab.mixin.Copyable
     %%
     function out = get.dimLabels(obj)
       out = {obj.dimensions_.dimLabels};      
-    end;
+    end
     
     %% dimUnits Get/Set Methods
     %%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -673,11 +679,11 @@ classdef labelledArray < handle & matlab.mixin.Copyable
         return;
       end
       obj.dimensions_.dimUnits = val;
-    end;
+    end
     
     function out = get.dimUnits(obj)
       out = {obj.dimensions_.dimUnits};      
-    end;
+    end
     
     %% dimValue Get/Set Methods
     %%%%%%%%%%%%%%%%%%%%%%%%
@@ -694,8 +700,8 @@ classdef labelledArray < handle & matlab.mixin.Copyable
     
     function out = get.dimValues(obj)
       out = {obj.dimensions_.dimValues};      
-    end;
-    
+    end
+   
     %%  arrayRange 
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
@@ -704,12 +710,12 @@ classdef labelledArray < handle & matlab.mixin.Copyable
       if isempty(obj.arrayRange_)
         % Update the array range if it hasn't been assigned yet.
         obj.updateArrayRange(true);
-      end;
+      end
       rangeOut = obj.arrayRange_;           
-    end;                  
+    end                
     function set.arrayRange(obj,~)
       error('obj.arrayRange is derived from obj.array');
-    end;
+    end
         
     function updateArrayRange(obj,force,restrictionList)
       % Update the stored array range
@@ -734,28 +740,28 @@ classdef labelledArray < handle & matlab.mixin.Copyable
       %
       
       % Flag for Forced Recomputation
-      if ~exist('force','var'),force = false; end;
+      if ~exist('force','var'),force = false; end
       
       % 
       if isempty(obj.arrayRange_)&&~force  
         % Only update the range if we're actually requesting it, or it's
         % been set before.
         return;
-      end;
+      end
       
-      if ~exist('restrictionList','var'), restrictionList = {':'}; end;
+      if ~exist('restrictionList','var'), restrictionList = {':'}; end
       
       allIdx = obj.getNumericIndex(restrictionList{:});
       
       arrayMin = min(obj.array(allIdx{:}));
       while ~isscalar(arrayMin)
         arrayMin = min(arrayMin);
-      end;
+      end
       
       arrayMax = max(obj.array(allIdx{:}));
       while ~isscalar(arrayMax)
         arrayMax = max(arrayMax);
-      end;
+      end
       
       obj.arrayRange_ = [arrayMin arrayMax];      
     end    
@@ -947,7 +953,7 @@ classdef labelledArray < handle & matlab.mixin.Copyable
       if nargout==2
         % Pass out the index, if requested.
         varargout{1} = dimIdx;
-      end;
+      end
       
     end
         

@@ -106,7 +106,7 @@ classdef spatialGrid < handle & matlab.mixin.Copyable
     %%%%%%%%%%%%%%%%%%%%%
     function val = get.directions(obj)
       val = obj.directions_;
-    end;
+    end
     
     function set.directions(obj,val)
       isNumMat = isnumeric(val)&&ismatrix(val);
@@ -117,32 +117,32 @@ classdef spatialGrid < handle & matlab.mixin.Copyable
               'Mismatch in size of directions matrix');
                     
       obj.directions_ = val;
-    end;
+    end
     
     function set.directions_(obj,val)            
       obj.directions_ = val;
-    end;          
+    end        
     
     %% Set/Get Orientation
     %%%%%%%%%%%%%%%%%%%%%%
     function val = get.orientation(obj)
       val = obj.orientation_;
-    end;
+    end
     
     function set.orientation(obj,val)
       obj.orientation_ = val;
-    end;
+    end
           
     
     %% Set/Get Centering
     %%%%%%%%%%%%%%%%%%%%
     function val = get.centering(obj)
       val = obj.centering_;
-    end;
+    end
     
     function set.centering(obj,val)
       obj.centering_ = val;
-    end;
+    end
     
     %% Get Aspect
     %%%%%%%%%%%%%
@@ -164,14 +164,13 @@ classdef spatialGrid < handle & matlab.mixin.Copyable
       pts = zeros(numel(XYZ{1}),numel(XYZ));
       for i = 1:numel(XYZ)
         pts(:,i) = XYZ{i}(:);
-      end;
+      end
       
       pts = pts*grid.directions' + grid.origin;
       
     end
     
     function isUniform = isUniformlySampled(grid)
-      
       nDim = numel(grid.dimensions);        
     end
     
@@ -184,7 +183,7 @@ classdef spatialGrid < handle & matlab.mixin.Copyable
       %
       %
       
-      if ~exist('useNodes','var'),useNodes = ':'; end;
+      if ~exist('useNodes','var'),useNodes = ':'; end
       
       pts = grid.getGridPts;
       pts = pts(useNodes,:);
@@ -198,7 +197,7 @@ classdef spatialGrid < handle & matlab.mixin.Copyable
         q = find(dist==min(dist));
         if numel(q)>1, % Pick a random node if there's more than one
           q = q(ceil(numel(q)*rand(1,1)));
-        end;
+        end
         idxOut(i) = UseNodes(q);
       end
       
