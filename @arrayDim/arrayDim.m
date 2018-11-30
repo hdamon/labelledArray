@@ -162,7 +162,10 @@ classdef arrayDim < handle & matlab.mixin.Copyable
     end
     
     function set.dimKind_(obj,val)
-      validatestring(val,obj.validKinds);
+      if ~isempty(val)
+      val = validatestring(val,obj.validKinds);
+      end
+      obj.dimKind_ = val;
     end
     
     %% Get/Set obj.dimType
@@ -176,33 +179,36 @@ classdef arrayDim < handle & matlab.mixin.Copyable
     end
     
     function set.dimType_(obj,val)
+      if ~isempty(val)
+        val = validatestring(val,obj.validTypes);
+      end
       obj.dimType_ = val;
     end
     
     %% Get/Set obj.dimSize and related properties
     %%%%%%%%%%%%%%%%%%%%%%
-    function size = allDimSize(obj)
-      % Return an array of all dimensions sizes
-      %
-      % size = allDimSize(obj)
-      %
-      % For single arrayDim objects, this is the same as obj.dimSize. When
-      % passed an array of a
-      error('DEPRECATED')
-      size = cell2mat({obj.dimSize});
-    end
+%     function size = allDimSize(obj)
+%       % Return an array of all dimensions sizes
+%       %
+%       % size = allDimSize(obj)
+%       %
+%       % For single arrayDim objects, this is the same as obj.dimSize. When
+%       % passed an array of a
+%       error('DEPRECATED')
+%       size = cell2mat({obj.dimSize});
+%     end
     
-    function isFixed = get.fixedSize(obj)
-      % Determine if dimension has a fixed size
-      %
-      % Not sure if this is entirely necessary.
-      warning('arrayDim.fixedSize is deprecated');
-      if isempty(obj.dimSize_)
-        isFixed = false;
-      else
-        isFixed = true;
-      end
-    end
+%     function isFixed = get.fixedSize(obj)
+%       % Determine if dimension has a fixed size
+%       %
+%       % Not sure if this is entirely necessary.
+%       warning('arrayDim.fixedSize is deprecated');
+%       if isempty(obj.dimSize_)
+%         isFixed = false;
+%       else
+%         isFixed = true;
+%       end
+%     end
     
     function sizeOut = get.dimSize(obj)
       % Get the size of an individual dimension
@@ -213,21 +219,16 @@ classdef arrayDim < handle & matlab.mixin.Copyable
       % Otherwise empty dimensions have a size of 1.
       %
       if isempty(obj.dimSize_)
-        if ischar(obj.dimLabels)
-          nLabels = 1;
-        else
-          nLabels = numel(obj.dimLabels);
-        end
-        if ischar(obj.dimUnits)
-          nUnits = 1;
-        else
-          nUnits  = numel(obj.dimUnits);
-        end
+        nLabels = oneIfChar('dimLabels');
+        nUnits  = oneIfChar('dimUnits');
         nValues = numel(obj.dimValues);
         sizeOut = max([nLabels nUnits nValues 0]);
       else
         sizeOut = obj.dimSize_;
       end
+      
+
+      
     end
     
     function set.dimSize(obj,val)
@@ -301,14 +302,13 @@ classdef arrayDim < handle & matlab.mixin.Copyable
         
     function set.dimValues(obj,val)
       obj.trySet('dimValues_',val);
-      %obj.dimValues_ = val(:)';
-      %assert(obj.isInternallyConsistent);
     end
     
     function set.dimValues_(obj,val)
       if size(val,1)>1
         val = val';
       end
+        
       assert(isempty(val)||isvector(val),...
         'Dimension values must be a row vector');
       obj.dimValues_ = val;
@@ -360,6 +360,12 @@ classdef arrayDim < handle & matlab.mixin.Copyable
       if ~isequal(obj.dimType,a.dimType)
         isEqual = false;
         warning(['Dimension type mismatch in dimension:' num2str(i)]);
+      end
+      
+      if ~isequal(obj.dimKind,a.dimKind)
+        isEqual = false;
+        warning(['Dimension kind mismatch in dimension:' numestr(i)]);
+      end
       
       % Check label equality
       if ~(isequal(obj.dimLabels,a.dimLabels))
@@ -1005,7 +1011,9 @@ classdef arrayDim < handle & matlab.mixin.Copyable
       assert(objOut.isInternallyConsistent);
       
       function assignIfNotEmpty(fieldName)
-        objOut.([fieldName '_']) = objOut.(fieldName)(idx);
+        if ~isempty(objOut.(fieldName))
+          objOut.([fieldName '_']) = objOut.(fieldName)(idx);
+        end
       end
     end
     
@@ -1015,9 +1023,9 @@ classdef arrayDim < handle & matlab.mixin.Copyable
   %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%55
   
   methods
-    
+        
     function isOk = isInternallyConsistent(obj)
-      % Check the internal consistency of the object
+      % Check arrayDim internal consistency
       %
       % Returns true if object is internally consistent. Errors otherwise.
       %
@@ -1040,20 +1048,12 @@ classdef arrayDim < handle & matlab.mixin.Copyable
         'Dimension name must be a character string');
       
       %% Check Dimension Labels
-      if ischar(obj.dimLabels)
-        nLabels = 1;
-      else
-        nLabels = numel(obj.dimLabels);
-      end
+      nLabels = obj.oneIfChar('dimLabels');
       assert((nLabels==0)||(nLabels==obj.dimSize),...
         'Inconsistent number of labels');
       
       %% Check Dimension Units
-      if ischar(obj.dimUnits)
-        nUnits = 1;
-      else
-        nUnits  = numel(obj.dimUnits);
-      end
+      nUnits = obj.oneIfChar('dimUnits');
       assert((nUnits==0)||(ischar(obj.dimUnits))||(nUnits==obj.dimSize),...
         'Inconsistent number of units');
       
@@ -1066,11 +1066,20 @@ classdef arrayDim < handle & matlab.mixin.Copyable
       
       %%
       isOk = true;
+          
     end
     
   end
   
   methods (Static=true)
+    
+    function val = oneIfChar(fieldName)
+      if ischar(obj.(fieldName))
+        val = 1;
+      else
+        val = numel(obj.(fieldName));
+      end
+    end   
     
     function [validOut,nOutput] = parseInputsIntoCells(varargin)
       % Input parser for the main object constructor.
@@ -1079,20 +1088,20 @@ classdef arrayDim < handle & matlab.mixin.Copyable
       %
       %
       
-              isEmptyOrCell = @(x) isempty(x)||iscell(x);
-        isNumericScalar = @(x) isnumeric(x)&&isscalar(x);
-        isNumericVector = @(x) isnumeric(x)&&isvector(x);
-        isCharOrCellStr = @(x) ischar(x)||iscellstr(x);
-                
-        p = inputParser;        
-        p.addParameter('dimName'  , [], @(x) isEmptyOrCell(x)||ischar(x));
-        p.addParameter('dimKind'  , [], @(x) isEmptyOrCell(x)||ischar(x));
-        p.addParameter('dimType'  , [], @(x) isEmptyOrCell(x)||ischar(x));
-        p.addParameter('dimSize'  , [], @(x) isEmptyOrCell(x)||isNumericScalar(x)||isNumericVector(x));
-        p.addParameter('dimLabels', [], @(x) isEmptyOrCell(x)||isCharOrCellStr(x));
-        p.addParameter('dimUnits' , [], @(x) isEmptyOrCell(x)||isCharOrCellStr(x));
-        p.addParameter('dimValues', [], @(x) isEmptyOrCell(x)||isNumericVector(x));
-        p.parse(varargin{:});
+      isEmptyOrCell = @(x) isempty(x)||iscell(x);
+      isNumericScalar = @(x) isnumeric(x)&&isscalar(x);
+      isNumericVector = @(x) isnumeric(x)&&isvector(x);
+      isCharOrCellStr = @(x) ischar(x)||iscellstr(x);
+      
+      p = inputParser;
+      p.addParameter('dimName'  , [], @(x) isEmptyOrCell(x)||ischar(x));
+      p.addParameter('dimKind'  , [], @(x) isEmptyOrCell(x)||ischar(x));
+      p.addParameter('dimType'  , [], @(x) isEmptyOrCell(x)||ischar(x));
+      p.addParameter('dimSize'  , [], @(x) isEmptyOrCell(x)||isNumericScalar(x)||isNumericVector(x));
+      p.addParameter('dimLabels', [], @(x) isEmptyOrCell(x)||isCharOrCellStr(x));
+      p.addParameter('dimUnits' , [], @(x) isEmptyOrCell(x)||isCharOrCellStr(x));
+      p.addParameter('dimValues', [], @(x) isEmptyOrCell(x)||isNumericVector(x));
+      p.parse(varargin{:});
       
       [dName,nameSize]    = convertToCell(p.Results.dimName,@iscell);
       [dKind,kindSize]    = convertToCell(p.Results.dimKind,@iscell);
@@ -1108,7 +1117,7 @@ classdef arrayDim < handle & matlab.mixin.Copyable
       
       validOut.dName   = validateCell(dName,nOutput);
       validOut.dKind   = validateCell(dKind,nOutput);
-      validOut.dType   = validateCell(dKind,nOutput);
+      validOut.dType   = validateCell(dType,nOutput);
       validOut.dSize   = validateCell(dSize,nOutput);
       validOut.dLabels = validateCell(dLabels,nOutput);
       validOut.dUnits  = validateCell(dUnits,nOutput);
