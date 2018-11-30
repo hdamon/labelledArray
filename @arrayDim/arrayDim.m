@@ -6,8 +6,22 @@ classdef arrayDim < handle & matlab.mixin.Copyable
   % Properties
   % ----------
   %     dimName : String containing the dimension name
+  %     dimKind : Content of the dimension. Follows the standard set for the
+  %                 kinds field in the NRRD header, as defined at:
+  %                 http://teem.sourceforge.net/nrrd/format.html
+  %               Not all types are currently supported.
+  %     dimType : Dimension type. Must be one of three types:
+  %                 'Index','Value', or 'Label'
+  %               Index Type: Cannot set dimension Labels or Units, and
+  %                               obj.dimValues must be integer valued.
+  %               Value Type: Cannot set dimension Labels. Can have a
+  %                               single dimension unit type. obj.dimValues
+  %                               can take any real numeric value.
+  %               Label Type: Cannot set dimension Values. Labels must be a
+  %                               cell string array. Units 
   %     dimSize : Number of elements along that dimension
   %   fixedSize : Flag to determine whether dimSize is allowed to change
+  %                 <Possibly deprecated as of Nov 2018?)
   %   dimLabels : Cellstr of names for each element of the array
   %    dimUnits : Either:
   %                  String containing a uniform set of units for all
@@ -20,9 +34,11 @@ classdef arrayDim < handle & matlab.mixin.Copyable
   %
   %
       
-  properties (Dependent)
+  properties (Dependent) %% Deprecated
     %% Public and subclass property access is through the dependent properties    
-    dimName
+    dimName 
+    dimKind
+    dimType
     dimSize    
     dimLabels
     dimUnits
@@ -38,6 +54,8 @@ classdef arrayDim < handle & matlab.mixin.Copyable
   properties (Access=private)
     %% Actual values are stored in private properties     
     dimName_
+    dimKind_
+    dimType_
     dimSize_
     dimLabels_
     dimUnits_
@@ -52,21 +70,21 @@ classdef arrayDim < handle & matlab.mixin.Copyable
       %% Class constructor
       if nargin>0
           
+         % Typecasting for subclasses
         if isa(varargin{1},'arrayDim')
-            % Typecasting for subclasses
-%           % Return a copy of the input object
-%           obj = varargin{1}.copy;
-%           return;
+          % Casts any subclass to a bare arrayDim object
           
           % Copy values from object array
-          obj(numel(varargin{1})) = arrayDim;
           for i = 1:numel(varargin{1})
-              obj(i) = arrayDim('dimName',varargin{1}(i).dimName,...
-                                'dimSize',varargin{1}(i).dimSize,...
-                                'dimLabels',varargin{1}(i).dimLabels,...
-                                'dimUnits',varargin{1}(i).dimUnits,...
-                                'dimValues',varargin{1}(i).dimValues);
+            obj(i).dimName_   = varargin{1}(i).dimName;
+            obj(i).dimType_   = varargin{1}(i).dimType;
+            obj(i).dimKind_   = varargin{1}(i).dimKind;
+            obj(i).dimSize_   = varargin{1}(i).dimSize;
+            obj(i).dimLabels_ = varargin{1}(i).dimLabels;
+            obj(i).dimUnits_  = varargin{1}(i).dimUnits;
+            obj(i).dimValues_ = varargin{1}(i).dimValues;
           end
+          return;
         end
         
         %% Input Parsing
@@ -903,6 +921,8 @@ classdef arrayDim < handle & matlab.mixin.Copyable
       end
       
     end
+    
+    
     
     function [objOut,varargout] = subcopy(objIn,varargin)
       % Copies a subset of the dimension into a new arrayDim object

@@ -30,6 +30,7 @@ classdef spatialGrid < handle & matlab.mixin.Copyable
     
     function obj = spatialGrid(dimensions,varargin)
       
+      if nargin>0
       if isa(dimensions,'spatialGrid')
         % Output copy of the input object
         obj = dimensions.copy;
@@ -60,7 +61,7 @@ classdef spatialGrid < handle & matlab.mixin.Copyable
       
       obj.orientation = p.Results.orientation;
       obj.centering = p.Results.centering;
-      
+      end
     end
     
     %% Set/Get Dimensions
