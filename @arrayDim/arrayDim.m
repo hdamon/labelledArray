@@ -130,7 +130,7 @@ classdef arrayDim < handle & matlab.mixin.Copyable
       oldVal = obj.(field);
       obj.(field) = val;
       try
-        assert(obj.isInternallyConsistent);
+        assert(obj.isValidArrayDim);
       catch
         obj.(field) = oldVal;
       end
@@ -252,7 +252,7 @@ classdef arrayDim < handle & matlab.mixin.Copyable
     function set.dimLabels(obj,val)
       obj.trySet('dimLabels_',val);
       %obj.dimLabels_ = val;
-      %assert(obj.isInternallyConsistent);
+      %assert(obj.isValidArrayDim);
     end
     
     function set.dimLabels_(obj,val)
@@ -277,7 +277,7 @@ classdef arrayDim < handle & matlab.mixin.Copyable
     function set.dimUnits(obj,val)
       obj.trySet('dimUnits_',val);
       %obj.dimUnits_ = val;
-      %assert(obj.isInternallyConsistent);
+      %assert(obj.isValidArrayDim);
     end
     
     function set.dimUnits_(obj,val)
@@ -477,7 +477,7 @@ classdef arrayDim < handle & matlab.mixin.Copyable
         objOut(dim).dimUnits_  = catUnits;
         objOut(dim).dimValues_ = catValues;            
       end
-      assert(objOut(dim).isInternallyConsistent);
+      assert(objOut(dim).isValidArrayDim);
       
       function out = checkType(in)
         if isempty(in)
@@ -1008,7 +1008,7 @@ classdef arrayDim < handle & matlab.mixin.Copyable
       end
       
       % Check for consistency
-      assert(objOut.isInternallyConsistent);
+      assert(objOut.isValidArrayDim);
       
       function assignIfNotEmpty(fieldName)
         if ~isempty(objOut.(fieldName))
@@ -1024,7 +1024,7 @@ classdef arrayDim < handle & matlab.mixin.Copyable
   
   methods
         
-    function isOk = isInternallyConsistent(obj)
+    function isOk = isValidArrayDim(obj)
       % Check arrayDim internal consistency
       %
       % Returns true if object is internally consistent. Errors otherwise.
@@ -1038,7 +1038,7 @@ classdef arrayDim < handle & matlab.mixin.Copyable
       if numel(obj)>1
         isOk = true;
         for idxDim = 1:numel(obj)
-          isOk = isOk&&obj(idxDim).isInternallyConsistent;
+          isOk = isOk&&obj(idxDim).isValidArrayDim;
         end
         return;
       end
