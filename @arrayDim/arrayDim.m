@@ -34,7 +34,7 @@ classdef arrayDim < handle & matlab.mixin.Copyable
       
   properties (Dependent) %% Deprecated
     %% Public and subclass property access is through the dependent properties    
-    dimName 
+    dimName
     dimKind
     dimType
     dimSize    
@@ -61,7 +61,7 @@ classdef arrayDim < handle & matlab.mixin.Copyable
   end
   
   properties (Constant, Access=private)
-    validTypes = {'index','value','label'};
+    validTypes = {'value','label'};
     validKinds = {'domain', 'space', 'time', 'list', 'point', 'vector', ...
                   'covariant-vector', };
   end
@@ -74,11 +74,12 @@ classdef arrayDim < handle & matlab.mixin.Copyable
       %% Class constructor
       if nargin>0
           
-         % Typecasting for subclasses
+        % Typecasting for subclasses
         if isa(varargin{1},'arrayDim')
           % Casts any subclass to a bare arrayDim object
           
           % Copy values from object array
+          obj(numel(varargin{1})) = obj(1);
           for i = 1:numel(varargin{1})
             obj(i).dimName_   = varargin{1}(i).dimName;
             obj(i).dimType_   = varargin{1}(i).dimType;
@@ -274,8 +275,6 @@ classdef arrayDim < handle & matlab.mixin.Copyable
     
     function set.dimUnits(obj,val)
       obj.trySet('dimUnits_',val);
-      %obj.dimUnits_ = val;
-      %assert(obj.isValidArrayDim);
     end
     
     function set.dimUnits_(obj,val)
@@ -300,6 +299,9 @@ classdef arrayDim < handle & matlab.mixin.Copyable
         
     function set.dimValues(obj,val)
       obj.trySet('dimValues_',val);
+      if isempty(obj.dimType)&&~isempty(val)
+        obj.dimType = 'value';
+      end
     end
     
     function set.dimValues_(obj,val)
@@ -391,7 +393,7 @@ classdef arrayDim < handle & matlab.mixin.Copyable
       for i = 1:numel(obj)
         isDimEmpty = true;
         % Empty only if all components are empty
-        isDimEmpty = isDimEmpty&&(obj(i).dimSize==1);
+        isDimEmpty = isDimEmpty&&(obj(i).dimSize==0);
         isDimEmpty = isDimEmpty&&isempty(obj(i).dimKind);
         isDimEmpty = isDimEmpty&&isempty(obj(i).dimType);
         isDimEmpty = isDimEmpty&&isempty(obj(i).dimName);
@@ -700,7 +702,6 @@ classdef arrayDim < handle & matlab.mixin.Copyable
         end
         
         % Value Indexing
-
         if numel(range)==1
           [~,idxOut] = min(abs(obj.dimValues-range(1)));
           
@@ -792,6 +793,8 @@ classdef arrayDim < handle & matlab.mixin.Copyable
       
       switch compType
         case 'byName'
+          % Finding a dimension by name
+
           compField = 'dimName';
           if isnumeric(toFind)
             assert(toFind<numel(obj),'Index exceeds object dimensions');
@@ -1117,13 +1120,18 @@ classdef arrayDim < handle & matlab.mixin.Copyable
   
   methods
        
-     function val = oneIfChar(obj,fieldName)
+    function val = oneIfChar(obj,fieldName)
+      % Returns the size of obj.(fieldName)
+      %
+      % If obj.(fieldName) is a character string, returns 1. (IE:
+      % obj.(fieldName) contains a single name-value
+      %
       if ischar(obj.(fieldName))
         val = 1;
       else
         val = numel(obj.(fieldName));
       end
-    end    
+    end
     
     function isOk = isValidArrayDim(obj)
       % Check arrayDim internal consistency
@@ -1157,59 +1165,61 @@ classdef arrayDim < handle & matlab.mixin.Copyable
         'Dimension type must be a character string');
       
       if ~isempty(obj.dimType)
-      switch obj.dimType
-        case 'index'
-          assert(isempty(obj.dimLabels),...
-            'Value type dimensions cannot contain labels');
-          nValues = numel(obj.dimValues);
-          assert((nValues==0)||(nValues==obj.dimSize),...
-            'Inconsistent number of values');
-          assert(isequal(obj.dimValues,round(obj.dimValues)),...
-            'Index type dimensions must have integer values');
-          assert(issorted(obj.dimValues)||...
-            issorted(flip(obj.dimValues,2)),'Value array must be sorted');
-          nUnits = obj.oneIfChar('dimUnits');
-          assert((nUnits==0)||(ischar(obj.dimUnits)),...
-            'Inconsistent number of units');
-        case 'value'
-          assert(isempty(obj.dimLabels),...
-            'Value type dimensions cannot contain labels');
-          nValues = numel(obj.dimValues);
-          assert((nValues==0)||(nValues==obj.dimSize),...
-            'Inconsistent number of values');
-          assert(issorted(obj.dimValues)||...
-            issorted(flip(obj.dimValues,2)),'Value array must be sorted');
-          nUnits = obj.oneIfChar('dimUnits');
-          assert((nUnits==0)||(ischar(obj.dimUnits)),...
-            'Inconsistent number of units');
-        case 'label'
-          assert(isempty(obj.dimValues),...
-            'Label type dimensions cannot contain values');
-          nLabels = obj.oneIfChar('dimLabels');
-          assert((nLabels==0)||(nLabels==obj.dimSize),...
-            'Inconsistent number of labels');
-          nUnits = obj.oneIfChar('dimUnits');
-          assert((nUnits==0)||(nUnits==obj.dimSize),...
-            'Inconsistent number of units');
-      end
-          %% Default validity checking from pre-dimType days
-          
-          %% Check Dimension Labels
-          nLabels = obj.oneIfChar('dimLabels');
-          assert((nLabels==0)||(nLabels==obj.dimSize),...
-            'Inconsistent number of labels');
-          
-          %% Check Dimension Units
-          nUnits = obj.oneIfChar('dimUnits');
-          assert((nUnits==0)||(ischar(obj.dimUnits))||(nUnits==obj.dimSize),...
-            'Inconsistent number of units');
-          
-          %% Check Dimension Values
-          nValues = numel(obj.dimValues);
-          assert((nValues==0)||(nValues==obj.dimSize),...
-            'Inconsistent number of values');
-          assert(issorted(obj.dimValues)||...
-            issorted(flip(obj.dimValues,2)),'Value array must be sorted');
+        % Should be used by all newly created arrayDims
+        switch obj.dimType
+          case 'index'
+            % Index type not currently implemented.
+            assert(isempty(obj.dimLabels),...
+              'Value type dimensions cannot contain labels');
+            nValues = numel(obj.dimValues);
+            assert((nValues==0)||(nValues==obj.dimSize),...
+              'Inconsistent number of values');
+            assert(isequal(obj.dimValues,round(obj.dimValues)),...
+              'Index type dimensions must have integer values');
+            assert(issorted(obj.dimValues)||...
+              issorted(flip(obj.dimValues,2)),'Value array must be sorted');
+            nUnits = obj.oneIfChar('dimUnits');
+            assert(ismember(nUnits,[0 1]),... %(nUnits==0)||(ischar(obj.dimUnits)),...
+              'Inconsistent number of units');
+          case 'value'
+            assert(isempty(obj.dimLabels),...
+              'Value type dimensions cannot contain labels');
+            nValues = numel(obj.dimValues);
+            assert((nValues==0)||(nValues==obj.dimSize),...
+              'Inconsistent number of values');
+            assert(issorted(obj.dimValues)||...
+              issorted(flip(obj.dimValues,2)),'Value array must be sorted');
+            nUnits = obj.oneIfChar('dimUnits');
+            assert(ismember(nUnits,[0 1]),... %(nUnits==0)||(ischar(obj.dimUnits)),...
+              'Inconsistent number of units');
+          case 'label'
+            assert(isempty(obj.dimValues),...
+              'Label type dimensions cannot contain values');
+            nLabels = obj.oneIfChar('dimLabels');
+            assert((nLabels==0)||(nLabels==obj.dimSize),...
+              'Inconsistent number of labels');
+            nUnits = obj.oneIfChar('dimUnits');
+            assert((nUnits==0)||(nUnits==obj.dimSize),...
+              'Inconsistent number of units');
+        end
+        %% Default validity checking from pre-dimType days
+        
+        %% Check Dimension Labels
+        nLabels = obj.oneIfChar('dimLabels');
+        assert((nLabels==0)||(nLabels==obj.dimSize),...
+          'Inconsistent number of labels');
+        
+        %% Check Dimension Units
+        nUnits = obj.oneIfChar('dimUnits');
+        assert((nUnits==0)||(ischar(obj.dimUnits))||(nUnits==obj.dimSize),...
+          'Inconsistent number of units');
+        
+        %% Check Dimension Values
+        nValues = numel(obj.dimValues);
+        assert((nValues==0)||(nValues==obj.dimSize),...
+          'Inconsistent number of values');
+        assert(issorted(obj.dimValues)||...
+          issorted(flip(obj.dimValues,2)),'Value array must be sorted');
       end
       %%
       isOk = true;
@@ -1219,9 +1229,7 @@ classdef arrayDim < handle & matlab.mixin.Copyable
   end
   
   methods (Static=true)
-    
-  
-    
+      
     function [validOut,nOutput] = parseInputsIntoCells(varargin)
       % Input parser for the main object constructor.
       %
@@ -1229,21 +1237,24 @@ classdef arrayDim < handle & matlab.mixin.Copyable
       %
       %
       
+      % Test Functions
       isEmptyOrCell = @(x) isempty(x)||iscell(x);
       isNumericScalar = @(x) isnumeric(x)&&isscalar(x);
       isNumericVector = @(x) isnumeric(x)&&isvector(x);
       isCharOrCellStr = @(x) ischar(x)||iscellstr(x);
       
+      % Input Parser
       p = inputParser;
-      p.addParameter('dimName'  , [], @(x) isEmptyOrCell(x)||ischar(x));
-      p.addParameter('dimKind'  , [], @(x) isEmptyOrCell(x)||ischar(x));
-      p.addParameter('dimType'  , [], @(x) isEmptyOrCell(x)||ischar(x));
+      p.addParameter('dimName'  , '', @(x) isEmptyOrCell(x)||ischar(x));
+      p.addParameter('dimKind'  , '', @(x) isEmptyOrCell(x)||ischar(x));
+      p.addParameter('dimType'  , '', @(x) isEmptyOrCell(x)||ischar(x));
       p.addParameter('dimSize'  , [], @(x) isEmptyOrCell(x)||isNumericScalar(x)||isNumericVector(x));
       p.addParameter('dimLabels', [], @(x) isEmptyOrCell(x)||isCharOrCellStr(x));
       p.addParameter('dimUnits' , [], @(x) isEmptyOrCell(x)||isCharOrCellStr(x));
       p.addParameter('dimValues', [], @(x) isEmptyOrCell(x)||isNumericVector(x));
       p.parse(varargin{:});
       
+      % Conversion to cells
       [dName,nameSize]    = convertToCell(p.Results.dimName,@iscell);
       [dKind,kindSize]    = convertToCell(p.Results.dimKind,@iscell);
       [dType,typeSize]    = convertToCell(p.Results.dimType,@iscell);
@@ -1254,8 +1265,10 @@ classdef arrayDim < handle & matlab.mixin.Copyable
         @(x) iscell(x)&&~iscellstr(x));
       [dValues,valueSize] = convertToCell(p.Results.dimValues, @iscell);
       
+      % nOutput
       nOutput = max([1 nameSize sizeSize labelSize unitSize valueSize]);
       
+      % Configure output with validity checking
       validOut.dName   = validateCell(dName,nOutput);
       validOut.dKind   = validateCell(dKind,nOutput);
       validOut.dType   = validateCell(dType,nOutput);
@@ -1263,6 +1276,10 @@ classdef arrayDim < handle & matlab.mixin.Copyable
       validOut.dLabels = validateCell(dLabels,nOutput);
       validOut.dUnits  = validateCell(dUnits,nOutput);
       validOut.dValues = validateCell(dValues,nOutput);
+      
+      return;
+      
+      %% Sub-functions below this line.
       
       function [cellOut, size] = convertToCell(input,checkFHandle,expand)
         % Convert input into correct cell form

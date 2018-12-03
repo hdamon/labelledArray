@@ -200,7 +200,7 @@ classdef labelledArray < handle & matlab.mixin.Copyable
   properties (Access=protected) % Should possibly be private?
     % Protected properties are used for actual storage of the object's data.
     array_      % The array array
-    dimensions_ % Dimension information
+    dimensions_ = arrayDim.empty;% Dimension information
     arrayRange_ %
   end
   
@@ -229,26 +229,26 @@ classdef labelledArray < handle & matlab.mixin.Copyable
         p = inputParser;
         p.KeepUnmatched = true;
         p.addRequired('array',@(x) (isnumeric(x)||isa(x,'labelledArray')));
+        p.addOptional('dimensions',[],@(x) isa(x,'arrayDim'));
         p.addParameter('dimNames' , [] , @(x) isempty(x)||checkType(x));
-       % p.addParameter('dimLabels', [] , @(x) isempty(x)||checkType(x));
-       % p.addParameter('dimUnits' , [] , @(x) isempty(x)||checkType(x));
-       % p.addParameter('dimValues', [] , @(x) isempty(x)||checkType(x));
         p.parse(array,varargin{:});
         
         % Property Assignment
         obj.array   = p.Results.array;
-        dims            = arrayDim('dimName',p.Results.dimNames,...
-                                    p.Unmatched);
-                                   %'dimLabels',p.Results.dimLabels,...
-                                   %'dimUnits',p.Results.dimUnits,...          
-                                   %'dimValues',p.Results.dimValues);  
-                               
-        if ~isempty(dims)
-          if numel(dims)>=obj.ndims
-            obj.dimensions_ = dims;
-          else
-            error('Insufficient number of dimensions provided');
-          end                         
+        if ~isempty(p.Results.dimensions)
+          % Full dimension objects provided
+          obj.dimensions = p.Results.dimensions;
+        else
+          % Dimension objects to be constructed          
+          dims = arrayDim('dimName',p.Results.dimNames,p.Unmatched);
+          
+          if ~isempty(dims)
+            if numel(dims)>=obj.ndims
+              obj.dimensions_ = dims;
+            else
+              error('Insufficient number of dimensions provided');
+            end
+          end
         end
       end   
     end
@@ -1023,12 +1023,7 @@ classdef labelledArray < handle & matlab.mixin.Copyable
               obj.dimensions(i).dimSize = size(val,i);
             else
               % Add a new dimension
-              %
-              if isempty(obj.dimensions_)
-                obj.dimensions_ = arrayDim('dimSize',size(val,i));
-              else
-                obj.dimensions_(i) = arrayDim('dimSize',size(val,i));
-              end
+              obj.dimensions_(i) = arrayDim('dimSize',size(val,i));
             end
           else
           end
