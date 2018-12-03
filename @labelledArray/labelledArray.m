@@ -940,9 +940,8 @@ classdef labelledArray < handle & matlab.mixin.Copyable
       % Input assertions
       assert(numel(obj)==1,'Subcopy must be called with a single labelledArray object');      
    
-      
       % Get New Dimensions and Indices
-      [newDims,dimIdx] = obj.dimensions_.subselectDimensions(varargin{:});
+      [newDims,dimIdx] = obj.dimensions_.subcopy(varargin{:});
       
       % Copy the object
       out = obj.copy;
@@ -958,8 +957,9 @@ classdef labelledArray < handle & matlab.mixin.Copyable
     end
         
     function setDimensions(obj,val)      
+      assert(isa(val,'arrayDim'),'obj.dimensions must be an arrayDim object');
       obj.dimensions_ = val;
-      assert(isInternallyConsistent(obj.dimensions_));
+      %assert(isInternallyConsistent(obj.dimensions_));
       if ~isempty(obj.array_)
         sz = size(obj.array_);
         s = size(obj);

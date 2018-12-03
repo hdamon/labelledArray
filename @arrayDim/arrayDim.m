@@ -6,14 +6,12 @@ classdef arrayDim < handle & matlab.mixin.Copyable
   % Properties
   % ----------
   %     dimName : String containing the dimension name
-  %     dimKind : Content of the dimension. Follows the standard set for the
-  %                 kinds field in the NRRD header, as defined at:
+  %     dimKind : Content of the dimension. Uses the same naming convention
+  %                 as defined in the NRRD file format specification:
   %                 http://teem.sourceforge.net/nrrd/format.html
   %               Not all types are currently supported.
   %     dimType : Dimension type. Must be one of three types:
-  %                 'Index','Value', or 'Label'
-  %               Index Type: Cannot set dimension Labels or Units, and
-  %                               obj.dimValues must be integer valued.
+  %                 'Value', or 'Label'
   %               Value Type: Cannot set dimension Labels. Can have a
   %                               single dimension unit type. obj.dimValues
   %                               can take any real numeric value.
@@ -62,7 +60,7 @@ classdef arrayDim < handle & matlab.mixin.Copyable
     dimValues_
   end
   
-  properties (Constant)
+  properties (Constant, Access=private)
     validTypes = {'index','value','label'};
     validKinds = {'domain', 'space', 'time', 'list', 'point', 'vector', ...
                   'covariant-vector', };
@@ -250,7 +248,7 @@ classdef arrayDim < handle & matlab.mixin.Copyable
     
     function set.dimLabels(obj,val)
       obj.trySet('dimLabels_',val);
-      if isempty(obj.dimType)
+      if isempty(obj.dimType)&&~isempty(val)
         obj.dimType = 'label';
       end
     end
@@ -749,51 +747,125 @@ classdef arrayDim < handle & matlab.mixin.Copyable
       %  idxOut : Numeric reference to each requested dimension.
       %
       idxIn = varargin;
-      %if ischar(idxIn), idxIn = {idxIn}; end;
       
+      % Find Comparison Type
+      %    Can be either the first or the last value in varargin
+      if ischar(idxIn{1})&&length(idxIn{1})>=2 && strcmpi(idxIn{1}(1:2),'by')
+        compType = validatestring(idxIn{1},{'byName','byType','byKind'});
+        idxIn = idxIn(2:end);
+      elseif ischar(idxIn{end})&&length(idxIn{end})>=2 && strcmpi(idxIn{end}(1:2),'by')
+        compType = validatestring(idxIn{end},{'byName','byType','byKind'});
+        idxIn = idxIn(1:end-1);
+      else
+        compType = 'byName';
+      end
+       
+      % Check for cells among the requests
+      cellOutput = any(cellfun(@iscell,idxIn));
+
+      % Iterate for multiple varargin
       if numel(idxIn)>1
+        if cellOutput
+          idxOut = {};
+        else
+          idxOut = [];
+        end
+        
         for i = 1:numel(idxIn)
-          idxOut(i) = obj.findDimensions(idxIn{i});
+          if cellOutput
+            idxOut = { idxOut obj.findDimensions(compType,idxIn{i}) };
+          else
+            idxOut = [idxOut obj.findDimensions(compType,idxIn{i})];
+          end
         end
         return;
       end
       
-      % Should only be one cell in varargin at this point.
-      idxIn = varargin{1};
-      if ischar(idxIn), idxIn = {idxIn}; end
+      % Single idxIn cell below this line.
+      toFind = idxIn{1};
       
-      if isnumeric(idxIn)
-        % Numeric Dimension Indexing
-        assert(all(idxIn<=numel(obj)), ...
-          'Index exceeds object dimensions');
-        idxOut = idxIn;
-      elseif iscell(idxIn)
-        % Cell referencing by dimension name or number
-        idxOut = nan(1,numel(idxIn));
-        for i = 1:numel(idxIn)
-          if isnumeric(idxIn{i})&&isscalar(idxIn{i})
-            % Numeric indexing within a cell array
-            assert(idxIn{i}<=numel(obj),...
-              'Index exceeds object dimensions');
-            idxOut(i) = idxIn{i};
-          elseif ischar(idxIn{i})
+      % Recurse if we're looking at a cell
+      if iscell(toFind)
+        idxOut = obj.findDimensions(compType,toFind{:});
+        return;
+      end
+      
+      switch compType
+        case 'byName'
+          compField = 'dimName';
+          if isnumeric(toFind)
+            assert(toFind<numel(obj),'Index exceeds object dimensions');
+            idxOut = toFind;
+          elseif ischar(toFind)
             % Referencing by dimension name
-            validNames = {obj.dimName};
+            validNames = {obj.(compField)};
             validNames = validNames(~cellfun(@isempty,validNames));
             if isempty(validNames)
               error('Name indexing unavailable');
             end
-            inName = validatestring(idxIn{i},validNames);
+            inName = validatestring(toFind,validNames);
             
-            matched = cellfun(@(x) isequal(x,inName),{obj.dimName});
-            idxOut(i) = find(matched);
+            matched = cellfun(@(x) isequal(x,inName),{obj.(compField)});
+            idxOut = find(matched);
           else
             error('Invalid dimension reference');
           end
-        end
-      else
-        error('Invalid dimension referencing');
+        case {'byType','byKind'} 
+          switch compType
+            case 'byType', compField = 'dimType';
+            case 'byKind', compField = 'dimKind';
+          end
+          if ischar(toFind)
+            % Referencing by dimension name
+            validNames = {obj.(compField)};
+            validNames = validNames(~cellfun(@isempty,validNames));
+            if isempty(validNames)
+              error('Name indexing unavailable');
+            end
+            inName = validatestring(toFind,validNames);
+            
+            matched = cellfun(@(x) isequal(x,inName),{obj.(compField)});
+            idxOut = find(matched);
+          else
+            error('Invalid dimension reference');
+          end
       end
+           
+%       % Should be just a single cell left.
+%       idxIn = idxIn{1};
+%       
+%       if isnumeric(idxIn)
+%         % Numeric Dimension Indexing
+%         assert(all(idxIn<=numel(obj)), ...
+%           'Index exceeds object dimensions');
+%         idxOut = idxIn;
+%       elseif iscell(idxIn)
+%         % Cell referencing by dimension name or number
+%         idxOut = nan(1,numel(idxIn));
+%         for i = 1:numel(idxIn)
+%           if isnumeric(idxIn{i})&&isscalar(idxIn{i})
+%             % Numeric indexing within a cell array
+%             assert(idxIn{i}<=numel(obj),...
+%               'Index exceeds object dimensions');
+%             idxOut(i) = idxIn{i};
+%           elseif ischar(idxIn{i})
+%             % Referencing by dimension name
+%             validNames = {obj.(compField)};
+%             validNames = validNames(~cellfun(@isempty,validNames));
+%             if isempty(validNames)
+%               error('Name indexing unavailable');
+%             end
+%             inName = validatestring(idxIn{i},validNames);
+%             
+%             matched = cellfun(@(x) isequal(x,inName),{obj.(compField)});
+%             idxOut(i) = find(matched);
+%           else
+%             error('Invalid dimension reference');
+%           end
+%         end
+%       else
+%         error('Invalid dimension referencing');
+%       end
     end
     
     function [dimOut] = getConsistentDimensions(obj,a)
@@ -813,20 +885,12 @@ classdef arrayDim < handle & matlab.mixin.Copyable
       
       nDimsOut = max(numel(obj),numel(a));
       
-      if nDimsOut==1
-        assert(isMutuallyConsistent(obj,a,...
-          'sizeMismatchValid',true,...
-          'nameMismatchValid',true),'Inconsistent decomposition sizes');
-        
-        if (obj.dimSize>1)||(a.dimSize==1)
-          dimOut = obj.copy;
-        else
-          dimOut = a.copy;
-        end
-      else
-        dimOut(nDimsOut) = arrayDim;
+      % Recurse for multiple objects
+      if nDimsOut<1
+       dimOut(nDimsOut) = arrayDim;
         for i = 1:nDimsOut
           if i>numel(obj)
+            % 
             dimOut(i) = a(i).copy;
           elseif i>numel(a)
             dimOut(i) = obj(i).copy;
@@ -836,6 +900,19 @@ classdef arrayDim < handle & matlab.mixin.Copyable
         end
       end
       
+      %% Single object below this line
+      %assert(isMutuallyConsistent(obj,a,...
+      %  'sizeMismatchValid',true,...
+      %  'nameMismatchValid',true),'Inconsistent decomposition sizes');
+      
+      assert(isMutuallyConsistent(obj,a),'Inconsistent dimensions');
+      
+      if (obj.dimSize>1)||(a.dimSize==1)
+        dimOut = obj.copy;
+      else
+        dimOut = a.copy;
+      end
+          
     end
     
     function isConsistent = isMutuallyConsistent(obj,a,varargin)
@@ -923,16 +1000,25 @@ classdef arrayDim < handle & matlab.mixin.Copyable
         return;
       end
       
+      %% Single object below this line
+      
+      % Check that names match, by default.
       if ~p.Results.nameMismatchValid
-        % By default, check that the names match
         isConsistent = isEmptyOrEqual(obj.dimName,a.dimName);
         if ~isConsistent, return; end
       end      
       
-      %% Compare Single Dimension Below This Line            
+      % Check that kinds match
+      isConsistent = isEmptyOrEqual(obj.dimKind,a.dimKind);
+      if ~isConsistent, return; end
+      
+      % Check that types match
+      isConsistent = isEmptyOrEqual(obj.dimType,a.dimType);
+      if ~isConsistent, return; end
+                
       if isMostlyEmpty(obj)||isMostlyEmpty(a)
         % If one or the other is mostly empty (only a name assigned, if
-        % anything, and we've already checked that), then they are compatible.                
+        % anything, and we've already checked that), then they are compatible.  
         return;
       end
            
@@ -942,6 +1028,8 @@ classdef arrayDim < handle & matlab.mixin.Copyable
         isConsistent = xor((obj.dimSize==1),(a.dimSize==1));
         if isConsistent, return; end
       end
+      
+      if p.Results.sizeMismatchValid, return; end
       
       if p.Results.sizeMismatchValid&&p.Results.testStrict
         % If mismatched sizes are valid, just want to check the
@@ -961,7 +1049,9 @@ classdef arrayDim < handle & matlab.mixin.Copyable
         if ~isEmptyOrEqual(obj.dimValues,a.dimValues), return; end
       end
       isConsistent = true;
-            
+          
+      
+      
       function isValid = isEmptyOrEqual(A,B)
         % Require at least one empty value, or equality.
         isValid = isempty(A)||isempty(B);
@@ -979,6 +1069,10 @@ classdef arrayDim < handle & matlab.mixin.Copyable
       
       %% Get Numeric Index
       idx = getIndexIntoDimensions(objIn,varargin{:});
+      
+      if nargout>=2
+        varargout{1} = idx;
+      end
       
       %% Recurse for Multiple Objects
       objOut = objIn.copy;
@@ -1001,16 +1095,15 @@ classdef arrayDim < handle & matlab.mixin.Copyable
       
       assignIfNotEmpty('dimLabels');
       assignIfNotEmpty('dimValues');
-      if ~ischar(objObj.dimUnits), assignIfNotEmpty('dimUnits'); end
+      if ~ischar(objOut.dimUnits), assignIfNotEmpty('dimUnits'); end
       
-      if nargout>=2
-        varargout{1} = idx;
-      end
+
       
       % Check for consistency
       assert(objOut.isValidArrayDim);
       
       function assignIfNotEmpty(fieldName)
+        % Prevents errors trying to index into empty arrays
         if ~isempty(objOut.(fieldName))
           objOut.([fieldName '_']) = objOut.(fieldName)(idx);
         end
@@ -1063,8 +1156,8 @@ classdef arrayDim < handle & matlab.mixin.Copyable
       assert(isempty(obj.dimType)||ischar(obj.dimType),...
         'Dimension type must be a character string');
       
+      if ~isempty(obj.dimType)
       switch obj.dimType
-        
         case 'index'
           assert(isempty(obj.dimLabels),...
             'Value type dimensions cannot contain labels');
@@ -1098,8 +1191,8 @@ classdef arrayDim < handle & matlab.mixin.Copyable
           nUnits = obj.oneIfChar('dimUnits');
           assert((nUnits==0)||(nUnits==obj.dimSize),...
             'Inconsistent number of units');
-        otherwise
-          
+      end
+          %% Default validity checking from pre-dimType days
           
           %% Check Dimension Labels
           nLabels = obj.oneIfChar('dimLabels');
