@@ -797,7 +797,7 @@ classdef arrayDim < handle & matlab.mixin.Copyable
 
           compField = 'dimName';
           if isnumeric(toFind)
-            assert(toFind<numel(obj),'Index exceeds object dimensions');
+            assert(toFind<=numel(obj),'Index exceeds object dimensions');
             idxOut = toFind;
           elseif ischar(toFind)
             % Referencing by dimension name
