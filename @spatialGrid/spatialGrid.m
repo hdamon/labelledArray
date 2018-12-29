@@ -3,7 +3,39 @@ classdef spatialGrid < handle & matlab.mixin.Copyable
   %
   % Group several arrayDims together to define a spatial grid in nD space
   %
-  % 
+  % obj = spatialGrid(dimensions,varargin)
+  %
+  % Inputs
+  % ------
+  %   dimensions : arrayDim object defining the dimensions
+  %                   nDims = numel(dimensions)
+  %
+  % Param-Value Inputs
+  % ------------------
+  %        'origin' : (1 x nDims) Array Defining the Origin
+  %    'directions' : (nDims x nDims) Array defining basis functions.
+  %   'orientation' : Character string defining anatomic orientation of 
+  %                     the grid. 
+  %                     DEFAULT: 'Left-Posterior-Superior'
+  %     'centering' : Defines whether grid points like in the center of
+  %                     voxels ('cell'), or at the corners ('node')
+  %                     DEFAULT: 'cell'
+  %
+  % Properties
+  % ----------
+  %   origin
+  %  dimensions
+  %  directions
+  %  orientation
+  %  centering
+  %  voxSize
+  %  boundingBox
+  %  center
+  %  aspect
+  %
+  % Methods
+  % -------
+  %
   
   properties (Dependent = true)
     origin
@@ -18,53 +50,53 @@ classdef spatialGrid < handle & matlab.mixin.Copyable
   end
   
   properties (Access=protected)
+    % Defaults set in inputParser
     origin_
     directions_
     dimensions_
-    orientation_ = 'Left-Posterior-Superior';
-    centering_ = 'cell';
+    orientation_
+    centering_
   end
   
   
   methods
     
     function obj = spatialGrid(dimensions,varargin)
-      
+      % Main Object Constructor
+      %
       if nargin>0
-      if isa(dimensions,'spatialGrid')
-        % Output copy of the input object
-        obj = dimensions.copy;
-        return;
-      end
-      
-      obj.dimensions = dimensions;
-      
-      p = inputParser;   
-      p.KeepUnmatched = true;
-      p.addParameter('origin',[],@(x) isnumeric(x)&&(numel(x)==numel(dimensions)));
-      p.addParameter('directions',[]);
-      p.addParameter('orientation','Left-Posterior-Superior');
-      p.addParameter('centering','cell');      
-      p.parse(varargin{:});
-                  
-      if isempty(p.Results.origin)
-        obj.origin_ = zeros(1,numel(obj.dimensions));
-      else        
+        %% Typecasting for subclassed objects
+        if isa(dimensions,'spatialGrid')
+          % Copy all object property values to the new object.
+          obj.origin_      = dimensions.origin;
+          obj.directions_  = dimensions.directions;
+          obj.dimensions_  = dimensions.dimensions;
+          obj.orientation_ = dimensions.orientation;
+          obj.centering_   = dimensions.centering;
+          return;
+        end
+        
+        %% Input Parsing
+        p = inputParser;
+        p.KeepUnmatched = true;
+        p.addRequired('dimensions',@(x) isa(x,'arrayDim'));
+        p.addParameter('origin',zeros(1,numel(dimensions)),@(x) isnumeric(x)&&(numel(x)==numel(dimensions)));
+        p.addParameter('directions',eye(numel(dimensions)));
+        p.addParameter('orientation','Unknown');
+        p.addParameter('centering','cell');
+        p.parse(dimensions,varargin{:});
+        
+        %% Assign Property Values
+        obj.dimensions = p.Results.dimensions;
         obj.origin = p.Results.origin;
-      end
-      
-      if isempty(p.Results.directions)
-        obj.directions_ = eye(numel(obj.dimensions));
-      else
         obj.directions = p.Results.directions;
-      end
-      
-      obj.orientation = p.Results.orientation;
-      obj.centering = p.Results.centering;
+        obj.orientation = p.Results.orientation;
+        obj.centering = p.Results.centering;
       end
     end
     
     %% Set/Get Dimensions
+    %%%%%%%%%%%%%%%%%%%%%
     function val = get.dimensions(obj)
       val = obj.dimensions_;
     end
@@ -156,6 +188,20 @@ classdef spatialGrid < handle & matlab.mixin.Copyable
     function pts = getGridPts(grid)
       % Get location in nD space of each point in the grid
       %
+      % pts = getGridPts(grid);
+      %
+      % pts = obj.getGridPts;
+      %
+      % Inputs
+      % ------
+      %   grid : spatialGrid object
+      %
+      % Outputs
+      % -------
+      %  pts : Npts x 3 array of Euclidean coordinates for each point in
+      %          the grid. Point ordering indexes across the contents of
+      %          obj.dimensions in order
+      %
       
       allVals = {grid.dimensions.dimValues};
       
@@ -172,6 +218,7 @@ classdef spatialGrid < handle & matlab.mixin.Copyable
     end
     
     function isUniform = isUniformlySampled(grid)
+      error('isUniformlySampled method not fully implemented');
       nDim = numel(grid.dimensions);        
     end
     
@@ -182,6 +229,17 @@ classdef spatialGrid < handle & matlab.mixin.Copyable
       %  
       % function [idxOut] = getNearestNodes(grid,Positions,useNodes)
       %
+      % Inputs
+      % ------
+      %      grid : spatialGrid object
+      % Positions : Nx3 Array of Positions to Project
+      %  useNodes : Index array to restrict the nearest neighbor search
+      %               to a limited set of voxels.
+      %
+      % Output
+      % ------
+      %  idxOut : Nx1 Array of indices into spatialGrid of the points
+      %             closest to the input positions.
       %
       
       if ~exist('useNodes','var'),useNodes = ':'; end
@@ -207,6 +265,19 @@ classdef spatialGrid < handle & matlab.mixin.Copyable
     %% Find Grid Bounding Box
     %%%%%%%%%%%%%%%%%%%%%%%%%
     function boxOut = getBoundingBox(grid)
+      % Find the bounding box of a spatialGrid
+      %
+      % boxOut = getBoundingBox(grid)
+      %
+      % Inputs
+      % ------
+      %  grid : spatialGrid object
+      %
+      % Output
+      % ------
+      %  boxOut : 8x3 Array of bounding box corner coordinates
+      %             Dimension ordering is the same as 
+      %
       
       nDim = numel(grid.dimensions);
       boxOut = zeros(2^nDim,nDim);

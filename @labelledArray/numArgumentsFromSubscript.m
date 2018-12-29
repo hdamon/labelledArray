@@ -7,7 +7,7 @@ if ~iscell(s(1).subs)
   n = builtin('numArgumentsFromSubscript',obj,s,indexingContext);
 else
   n = 1;
-end;
+end
   
 % Optional overrides
    switch indexingContext
@@ -19,7 +19,7 @@ end;
              n = 1; % nargout for indexed reference used as statement            
             end  
           otherwise
-        end;            
+        end           
       case matlab.mixin.util.IndexingContext.Expression
         switch s(1).type
           case '()'
@@ -28,7 +28,7 @@ end;
              n = 1; % nargout for indexed reference used as statement            
             end  
           otherwise
-        end;         
+        end         
          %n = 1; % nargout for indexed reference used as function argument
       case matlab.mixin.util.IndexingContext.Assignment        
         
