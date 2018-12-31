@@ -382,7 +382,7 @@ classdef labelledArray < handle & matlab.mixin.Copyable
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     function out = applyFuncInPlace(obj,funcHandle,varargin)
       % For multiple objects, apply independently to each one.
-      out(numel(obj)) = labelledArray.empty;
+      out(numel(obj)) = labelledArray;
       for i = 1:numel(obj)
         out(i) = obj(i).copy;
         out(i).array_ = funcHandle(out(i).array,varargin{:});

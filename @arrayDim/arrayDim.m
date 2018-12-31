@@ -889,7 +889,7 @@ classdef arrayDim < handle & matlab.mixin.Copyable
       nDimsOut = max(numel(obj),numel(a));
       
       % Recurse for multiple objects
-      if nDimsOut<1
+      if nDimsOut>1
        dimOut(nDimsOut) = arrayDim;
         for i = 1:nDimsOut
           if i>numel(obj)
@@ -901,6 +901,7 @@ classdef arrayDim < handle & matlab.mixin.Copyable
             dimOut(i) = getConsistentDimensions(obj(i),a(i));
           end
         end
+        return;
       end
       
       %% Single object below this line
