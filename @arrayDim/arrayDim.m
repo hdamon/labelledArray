@@ -450,7 +450,17 @@ classdef arrayDim < handle & matlab.mixin.Copyable
         'nExtraDimsValid',1),'Dimensions are not mutually consistent');
       
       objOut = objA.copy;
-      
+    
+      % Get Type and Kind from objB if objA is empty. isMutuallyConsistent  has
+      % checked that they're either equal or empty. 
+      if isempty(objOut.dimKind)
+        objOut.dimKind = objB.dimKind;
+      end
+
+      if isempty(objOut.dimType)
+        objOut.dimType = objB.dimType;
+      end
+       
       % Copy info for dimensions that haven't been fully defined yet      
       for i = 1:numel(objA)
         if isMostlyEmpty(objA(i))
@@ -498,6 +508,8 @@ classdef arrayDim < handle & matlab.mixin.Copyable
       
       function newLabels = catLabels
         % Concatenate Labels
+
+        
         labelsA = checkType(objA(dim).dimLabels);
         labelsB = checkType(objB(dim).dimLabels);
         
@@ -514,9 +526,11 @@ classdef arrayDim < handle & matlab.mixin.Copyable
       
       function newUnits = catUnits
         % Concatenate Units
-        unitsA = checkType(objA(dim).dimUnits);
-        unitsB = checkType(objB(dim).dimUnits);
-        
+%        unitsA = checkType(objA(dim).dimUnits);
+%        unitsB = checkType(objB(dim).dimUnits);
+       
+        unitsA = objA(dim).dimUnits;
+        unitsB = objB(dim).dimUnits;
         
         if ischar(unitsA)&&ischar(unitsB)
           % Both have a single dimensional unit
@@ -525,18 +539,18 @@ classdef arrayDim < handle & matlab.mixin.Copyable
           else
             error('AAARGH');
           end                  
-        elseif ischar(unitsA)&&iscellstr(unitsB)
-          % Expand Dimensional Units
-          tmp(1:objA(dim).dimSize) = {unitsA};
-          unitsA = tmp;
-          newUnits = cat(2,unitsA,unitsB);          
-          
-        elseif ischar(unitsB)&&iscellstr(unitsA)
-          % Expand Dimensional Units
-          tmp(1:objB(dim).dimSize) = {unitsB};
-          unitsB = tmp;
-          newUnits = cat(2,unitsA,unitsB);          
-          
+%        elseif ischar(unitsA)&&iscellstr(unitsB)
+%          % Expand Dimensional Units
+%          tmp(1:objA(dim).dimSize) = {unitsA};
+%          unitsA = tmp;
+%          newUnits = cat(2,unitsA,unitsB);          
+%          
+%        elseif ischar(unitsB)&&iscellstr(unitsA)
+%          % Expand Dimensional Units
+%          tmp(1:objB(dim).dimSize) = {unitsB};
+%          unitsB = tmp;
+%          newUnits = cat(2,unitsA,unitsB);          
+%          
         elseif isempty(unitsA)&&~isempty(unitsB)
           tmp(1:objA(dim).dimSize) = {''};
           unitsA = tmp;
@@ -549,6 +563,7 @@ classdef arrayDim < handle & matlab.mixin.Copyable
           
         else
           % Both are cellstr
+          assert(iscellstr(unitsA)&&iscellstr(unitsB),'FOOERR');
           newUnits = cat(2,unitsA,unitsB);
         end
       end
@@ -884,8 +899,11 @@ classdef arrayDim < handle & matlab.mixin.Copyable
       % Outputs
       % -------
       %  dimOut : New arrayDim object
-      %
-      
+      % 
+      % As of 12/31/2018, this method appears to be unused.%
+     
+      warning('This method may be deprecated');
+       
       nDimsOut = max(numel(obj),numel(a));
       
       % Recurse for multiple objects
@@ -965,7 +983,8 @@ classdef arrayDim < handle & matlab.mixin.Copyable
       % ------
       %    isConsistent : Binary logical value
       %
-      
+     
+      %% Input Parsing 
       p = inputParser;
       p.addParameter('bsxValid',true,@islogical);
       p.addParameter('testStrict',true,@islogical);
