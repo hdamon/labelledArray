@@ -964,9 +964,9 @@ classdef arrayDim < handle & matlab.mixin.Copyable
             case {'dimname', 'dimkind','dimtype'}
               error('Should never be getting here');
             case 'dimsize'
-              if A.dimSize==1
+              if ismember(A.dimSize,[0 1])
                 out = B.dimSize;
-              elseif B.dimSize==1
+              elseif ismember(B.dimSize,[0 1])
                 out = A.dimSize;
               else
                 error('Should not be getting here');
