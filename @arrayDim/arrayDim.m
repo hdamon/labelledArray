@@ -455,7 +455,13 @@ classdef arrayDim < handle & matlab.mixin.Copyable
         objOut(nMax) = arrayDim;
         for i = 1:nMax
           if i~=dim
-            objOut(i) = getConsistentDimensions(objA(i),objB(i));
+            if i>numel(objA)
+              objOut(i) = objB(i);
+            elseif i>numel(objB)
+              objOut(i) = objA(i);
+            else
+              objOut(i) = getConsistentDimensions(objA(i),objB(i));
+            end
           else
             objOut(i) = cat(1,objA(i),objB(i));
           end
