@@ -948,20 +948,59 @@ classdef arrayDim < handle & matlab.mixin.Copyable
                
     end
     
-      function out = getUniqueValue(A,B,fieldName)
-        if isequal(A.(fieldName),B.(fieldName))
+    function out = getUniqueValue(A,B,fieldName)
+      if isequal(A.(fieldName),B.(fieldName))
+        out = A.(fieldName);
+        return
+      else
+        if isempty(A.(fieldName))
+          out = B.(fieldName);
+        elseif isempty(B.(fieldName))
           out = A.(fieldName);
-          return
         else
-          if isempty(A.(fieldName))
-            out = B.(fieldName);
-          elseif isempty(B.(fieldName))
-            out = A.(fieldName);
-          else
-            error('isMutuallyConsistent should ensure we never get here');
+          % There are some mutual consistencies that can land us here.
+          % Division, for example.
+          switch lower(fieldName)
+            case {'dimname', 'dimkind','dimtype'}
+              error('Should never be getting here');
+            case 'dimsize'
+              if A.dimSize==1
+                out = B.dimSize;
+              elseif B.dimSize==1
+                out = A.dimSize;
+              else
+                error('Should not be getting here');
+              end
+            case 'dimlabels'
+              if ischar(A.dimLabels)||numel(A.dimLabels)==1
+                out = B.dimLabels;
+              elseif ischar(B.dimLabels)||numel(B.dimLabels)==1
+                out = A.dimLabels;
+              else
+                error('Should not be getting here');
+              end;
+            case 'dimunits'
+              if ischar(A.dimUnits)||numel(A.dimUnits)==1
+                out = B.dimUnits;
+              elseif ischar(B.dimUnits)||numel(B.dimUnits)==1
+                out = A.dimUnits;
+              else
+                error('Should not be getting here');
+              end
+            case 'dimvalues'
+              if numel(A.dimValues)==1
+                out = B.dimValues;
+              elseif numel(B.dimValues)==1
+                out = A.dimValues;
+              else
+                error('Should not be getting here');
+              end
+            otherwise
+          error('isMutuallyConsistent should ensure we never get here');
           end
         end
       end
+    end
     
     function isConsistent = isMutuallyConsistent(obj,a,varargin)
       % Check consistency between two sets of array dimensions
