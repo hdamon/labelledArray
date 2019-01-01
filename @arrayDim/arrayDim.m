@@ -441,54 +441,41 @@ classdef arrayDim < handle & matlab.mixin.Copyable
     
     function objOut = cat(dim,objA,objB,varargin)
       % Concatenate dimensions
-      
+           
       %% Check for Mutual Consistency
       assert(isMutuallyConsistent(objA,objB,...
         'bsxValid',false,...
         'sizeMismatchValid',true,...
         'sizeMismatchDim',dim,...
         'nExtraDimsValid',1),'Dimensions are not mutually consistent');
-      
-      objOut = objA.copy;
-    
-      % Get Type and Kind from objB if objA is empty. isMutuallyConsistent  has
-      % checked that they're either equal or empty. 
-      if isempty(objOut.dimKind)
-        objOut.dimKind = objB.dimKind;
-      end
-
-      if isempty(objOut.dimType)
-        objOut.dimType = objB.dimType;
-      end
-       
-      % Copy info for dimensions that haven't been fully defined yet      
-      for i = 1:numel(objA)
-        if isMostlyEmpty(objA(i))
-          if (i~=dim)
-            objOut(i) = objB(i).copy;
+     
+      %% Recurse for multiple dimensions
+      if (numel(objA)>1)||(numel(objB)>1)
+        nMax = max(numel(objA),numel(objB));
+        objOut(nMax) = arrayDim;
+        for i = 1:nMax
+          if i~=dim
+            objOut(i) = getConsistentDimensions(objA(i),objB(i));
           else
-            % Copy the name for the concatenated dimension
-            if i<=numel(objB)
-             objOut(i).dimName = objB(i).dimName;
-            end
+            objOut(i) = cat(1,objA(i),objB(i));
           end
         end
       end
-            
-      if isMostlyEmpty(objA(dim))
-        if  dim <=numel(objB)
-          objOut(dim) = objB(dim).copy;
-        end
-      elseif isMostlyEmpty(objB(dim))
-        % Do Nothing
-      else      
-        objOut(dim).dimSize_   = catSize;
-        objOut(dim).dimLabels_ = catLabels;
-        objOut(dim).dimUnits_  = catUnits;
-        objOut(dim).dimValues_ = catValues;            
-      end
+    
+      % Get Type and Kind from objB if objA is empty. isMutuallyConsistent  has
+      % checked that they're either equal or empty. 
+      objOut = arrayDim;
+      objOut.dimName = getUniqueValue(objA,objB);
+      objOut.dimKind = getUniqueValue(objA,objB);
+      objOut.dimType = getUniqueValue(objA,objB);
+
+      objOut.dimSize_   = catSize(objA,objB);
+      objOut.dimLabels_ = catLabels(objA,objB);
+      objOut.dimUnits_  = catUnits(objA,objB);
+      objOut.dimValues_ = catValues(objA,objB);
+         
       assert(objOut(dim).isValidArrayDim);
-      
+       
       function out = checkType(in)
         if isempty(in)
           out = [];
@@ -497,81 +484,102 @@ classdef arrayDim < handle & matlab.mixin.Copyable
         end
       end
       
-      function newSize = catSize
-        if ~isempty(objA(dim).dimSize_)&&~isempty(objB(dim).dimSize_)
-          newSize = objA(dim).dimSize_ + objB(dim).dimSize_;
+      function newSize = catSize(objA,objB)
+        if ~isempty(objA.dimSize_)&&~isempty(objB.dimSize_)
+          newSize = objA.dimSize_ + objB.dimSize_;
         else
           % Clear if both aren't explicitly defined.
           newSize = [];
         end
       end
       
-      function newLabels = catLabels
+      function newLabels = catLabels(objA,objB)
         % Concatenate Labels
-
         
-        labelsA = checkType(objA(dim).dimLabels);
-        labelsB = checkType(objB(dim).dimLabels);
+        labelsA = checkType(objA.dimLabels);
+        labelsB = checkType(objB.dimLabels);
         
         if isempty(labelsA)&&~isempty(labelsB)
-          tmp(1:objA(dim).dimSize) = {''};
+          tmp(1:objA.dimSize) = {''};
           labelsA = tmp;
         end
         if isempty(labelsB)&&~isempty(labelsA)
-          tmp(1:objB(dim).dimSize) = {''};
+          tmp(1:objB.dimSize) = {''};
           labelsB = tmp;
         end
         newLabels = cat(2,labelsA,labelsB);
       end
       
-      function newUnits = catUnits
+      function newUnits = catUnits(objA,objB)
         % Concatenate Units
-%        unitsA = checkType(objA(dim).dimUnits);
-%        unitsB = checkType(objB(dim).dimUnits);
-       
-        unitsA = objA(dim).dimUnits;
-        unitsB = objB(dim).dimUnits;
-        
-        if ischar(unitsA)&&ischar(unitsB)
-          % Both have a single dimensional unit
-          if isequal(unitsA,unitsB)
-            newUnits = unitsA;
+        %        unitsA = checkType(objA(dim).dimUnits);
+        %        unitsB = checkType(objB(dim).dimUnits);
+                        
+        if isequal(getUniqueValue(objA,objB,'dimType'),'value')
+          % Value type dimensions can only have a single unit
+          %
+          % Equality should 
+          newUnits = getUniqueValue(objA,objB,'dimUnits');
+        elseif isequal(getUniqueValue(objA,objB,'dimType'),'label')
+          unitsA = objA.dimUnits;
+          unitsB = objB.dimUnits;
+          if isempty(unitsA)&&~isempty(unitsB)
+            tmp(1:objA(dim).dimSize) = {''};
+            unitsA = tmp;
+            newUnits = cat(2,unitsA,unitsB);
+            
+          elseif isempty(unitsB)&&~isempty(unitsA)
+            tmp(1:objB(dim).dimSize) = {''};
+            unitsB = tmp;
+            newUnits = cat(2,unitsA,unitsB);
+            
           else
-            error('AAARGH');
-          end                  
-%        elseif ischar(unitsA)&&iscellstr(unitsB)
-%          % Expand Dimensional Units
-%          tmp(1:objA(dim).dimSize) = {unitsA};
-%          unitsA = tmp;
-%          newUnits = cat(2,unitsA,unitsB);          
-%          
-%        elseif ischar(unitsB)&&iscellstr(unitsA)
-%          % Expand Dimensional Units
-%          tmp(1:objB(dim).dimSize) = {unitsB};
-%          unitsB = tmp;
-%          newUnits = cat(2,unitsA,unitsB);          
-%          
-        elseif isempty(unitsA)&&~isempty(unitsB)
-          tmp(1:objA(dim).dimSize) = {''};
-          unitsA = tmp;
-          newUnits = cat(2,unitsA,unitsB);
-          
-        elseif isempty(unitsB)&&~isempty(unitsA)
-          tmp(1:objB(dim).dimSize) = {''};
-          unitsB = tmp;
-          newUnits = cat(2,unitsA,unitsB);
-          
-        else
-          % Both are cellstr
-          assert(iscellstr(unitsA)&&iscellstr(unitsB),'FOOERR');
-          newUnits = cat(2,unitsA,unitsB);
+            % Both are cellstr
+            assert(iscellstr(unitsA)&&iscellstr(unitsB),'FOOERR');
+            newUnits = cat(2,unitsA,unitsB);
+          end
         end
+        %         if ischar(unitsA)&&ischar(unitsB)
+        %           % Both have a single dimensional unit
+        %           if isequal(unitsA,unitsB)
+        %             newUnits = unitsA;
+        %           else
+        %             error('AAARGH');
+        %           end
+        % %        elseif ischar(unitsA)&&iscellstr(unitsB)
+        % %          % Expand Dimensional Units
+        % %          tmp(1:objA(dim).dimSize) = {unitsA};
+        % %          unitsA = tmp;
+        % %          newUnits = cat(2,unitsA,unitsB);
+        % %
+        % %        elseif ischar(unitsB)&&iscellstr(unitsA)
+        % %          % Expand Dimensional Units
+        % %          tmp(1:objB(dim).dimSize) = {unitsB};
+        % %          unitsB = tmp;
+        % %          newUnits = cat(2,unitsA,unitsB);
+        % %
+        %         elseif isempty(unitsA)&&~isempty(unitsB)
+        %           tmp(1:objA(dim).dimSize) = {''};
+        %           unitsA = tmp;
+        %           newUnits = cat(2,unitsA,unitsB);
+        %
+        %         elseif isempty(unitsB)&&~isempty(unitsA)
+        %           tmp(1:objB(dim).dimSize) = {''};
+        %           unitsB = tmp;
+        %           newUnits = cat(2,unitsA,unitsB);
+        %
+        %         else
+        %           % Both are cellstr
+        %           assert(iscellstr(unitsA)&&iscellstr(unitsB),'FOOERR');
+        %           newUnits = cat(2,unitsA,unitsB);
+        %         end
+        %      end
+        
+        function newValues = catValues(objA,objB)
+          newValues = cat(2,objA.dimValues_,objB.dimValues_);
+        end
+        
       end
-      
-      function newValues = catValues
-        newValues = cat(2,objA(dim).dimValues_,objB(dim).dimValues_);
-      end
-      
     end
     
     function [objOut,varargout] = subselectDimensions(objIn,varargin)
@@ -886,10 +894,10 @@ classdef arrayDim < handle & matlab.mixin.Copyable
 %       end
     end
     
-    function [dimOut] = getConsistentDimensions(obj,a)
+    function [dimOut] = getConsistentDimensions(A,B)
       % Get a new set of mutually consistent dimensions
       %
-      % [dimOut] = getConsistentDimensions(obj,a)
+      % [dimOut] = getConsistentDimensions(A,B)
       %
       % Inputs
       % ------
@@ -900,23 +908,22 @@ classdef arrayDim < handle & matlab.mixin.Copyable
       % -------
       %  dimOut : New arrayDim object
       % 
-      % As of 12/31/2018, this method appears to be unused.%
      
-      warning('This method may be deprecated');
+      %warning('This method may be deprecated');
        
-      nDimsOut = max(numel(obj),numel(a));
+      nDimsOut = max(numel(A),numel(B));
       
       % Recurse for multiple objects
       if nDimsOut>1
        dimOut(nDimsOut) = arrayDim;
         for i = 1:nDimsOut
-          if i>numel(obj)
+          if i>numel(A)
             % 
-            dimOut(i) = a(i).copy;
-          elseif i>numel(a)
-            dimOut(i) = obj(i).copy;
+            dimOut(i) = B(i).copy;
+          elseif i>numel(B)
+            dimOut(i) = A(i).copy;
           else
-            dimOut(i) = getConsistentDimensions(obj(i),a(i));
+            dimOut(i) = getConsistentDimensions(A(i),B(i));
           end
         end
         return;
@@ -925,17 +932,35 @@ classdef arrayDim < handle & matlab.mixin.Copyable
       %% Single object below this line
       %assert(isMutuallyConsistent(obj,a,...
       %  'sizeMismatchValid',true,...
-      %  'nameMismatchValid',true),'Inconsistent decomposition sizes');
       
-      assert(isMutuallyConsistent(obj,a),'Inconsistent dimensions');
+      assert(isMutuallyConsistent(A,B),'Inconsistent dimensions');
       
-      if (obj.dimSize>1)||(a.dimSize==1)
-        dimOut = obj.copy;
-      else
-        dimOut = a.copy;
-      end
-          
+      dimOut = arrayDim;
+      dimOut.dimName = getUniqueValue(A,B,'dimName');
+      dimOut.dimKind = getUniqueValue(A,B,'dimKind');
+      dimOut.dimType = getUniqueValue(A,B,'dimType');
+      dimOut.dimSize = getUniqueValue(A,B,'dimSize');
+      
+      dimOut.dimLabels = getUniqueValue(A,B,'dimLabels');
+      dimOut.dimUnits  = getUniqueValue(A,B,'dimUnits');
+      dimOut.dimValues = getUniqueValue(A,B,'dimValues');
+               
     end
+    
+      function out = getUniqueValue(A,B,fieldName)
+        if isequal(A.(fieldName),B.(fieldName))
+          out = A.(fieldName);
+          return
+        else
+          if isempty(A.(fieldName))
+            out = B.(fieldName);
+          elseif isempty(B.(fieldName))
+            out = A.(fieldName);
+          else
+            error('isMutuallyConsistent should ensure we never get here');
+          end
+        end
+      end
     
     function isConsistent = isMutuallyConsistent(obj,a,varargin)
       % Check consistency between two sets of array dimensions
@@ -1119,9 +1144,7 @@ classdef arrayDim < handle & matlab.mixin.Copyable
       assignIfNotEmpty('dimLabels');
       assignIfNotEmpty('dimValues');
       if ~ischar(objOut.dimUnits), assignIfNotEmpty('dimUnits'); end
-      
-
-      
+            
       % Check for consistency
       assert(objOut.isValidArrayDim);
       
