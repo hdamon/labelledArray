@@ -465,9 +465,9 @@ classdef arrayDim < handle & matlab.mixin.Copyable
       % Get Type and Kind from objB if objA is empty. isMutuallyConsistent  has
       % checked that they're either equal or empty. 
       objOut = arrayDim;
-      objOut.dimName = getUniqueValue(objA,objB);
-      objOut.dimKind = getUniqueValue(objA,objB);
-      objOut.dimType = getUniqueValue(objA,objB);
+      objOut.dimName = getUniqueValue(objA,objB,'dimName');
+      objOut.dimKind = getUniqueValue(objA,objB,'dimKind');
+      objOut.dimType = getUniqueValue(objA,objB,'dimType');
 
       objOut.dimSize_   = catSize(objA,objB);
       objOut.dimLabels_ = catLabels(objA,objB);
