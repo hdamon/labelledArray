@@ -978,7 +978,7 @@ classdef arrayDim < handle & matlab.mixin.Copyable
                 out = A.dimLabels;
               else
                 error('Should not be getting here');
-              end;
+              end
             case 'dimunits'
               if ischar(A.dimUnits)||numel(A.dimUnits)==1
                 out = B.dimUnits;
