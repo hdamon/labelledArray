@@ -539,6 +539,7 @@ classdef arrayDim < handle & matlab.mixin.Copyable
             newUnits = cat(2,unitsA,unitsB);
           end
         end
+      end
         %         if ischar(unitsA)&&ischar(unitsB)
         %           % Both have a single dimensional unit
         %           if isequal(unitsA,unitsB)
@@ -579,7 +580,7 @@ classdef arrayDim < handle & matlab.mixin.Copyable
           newValues = cat(2,objA.dimValues_,objB.dimValues_);
         end
         
-      end
+
     end
     
     function [objOut,varargout] = subselectDimensions(objIn,varargin)
