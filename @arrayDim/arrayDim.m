@@ -535,7 +535,7 @@ classdef arrayDim < handle & matlab.mixin.Copyable
             
           else
             % Both are cellstr
-            assert(iscellstr(unitsA)&&iscellstr(unitsB),'FOOERR');
+            %assert(iscellstr(unitsA)&&iscellstr(unitsB),'FOOERR');
             newUnits = cat(2,unitsA,unitsB);
           end
         end
