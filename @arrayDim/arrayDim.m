@@ -466,6 +466,7 @@ classdef arrayDim < handle & matlab.mixin.Copyable
             objOut(i) = cat(1,objA(i),objB(i));
           end
         end
+        return;
       end
     
       % Get Type and Kind from objB if objA is empty. isMutuallyConsistent  has
