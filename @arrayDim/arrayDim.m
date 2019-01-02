@@ -1323,7 +1323,7 @@ classdef arrayDim < handle & matlab.mixin.Copyable
   methods (Static=true)
       
     function [validOut,nOutput] = parseInputsIntoCells(varargin)
-      % Input parser for the main object constructor.
+      % Input parser for the main arrayDim object constructor.
       %
       % Enables simultaneous construction of multiple objects
       %
@@ -1358,7 +1358,8 @@ classdef arrayDim < handle & matlab.mixin.Copyable
       [dValues,valueSize] = convertToCell(p.Results.dimValues, @iscell);
       
       % nOutput
-      nOutput = max([1 nameSize sizeSize labelSize unitSize valueSize]);
+      nOutput = max([1 nameSize kindSize typeSize ...
+                       sizeSize labelSize unitSize valueSize]);
       
       % Configure output with validity checking
       validOut.dName   = validateCell(dName,nOutput);
